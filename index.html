@@ -5,566 +5,232 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sports Academy Super App</title>
     
-    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Axios for API requests -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    colors: {
-                        brand: { 50:'#eff6ff', 100:'#dbeafe', 500:'#3b82f6', 600:'#2563eb', dark:'#1e3a8a', accent:'#f59e0b' }
-                    },
-                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                    colors: { brand: { 50:'#eff6ff', 500:'#3b82f6', 600:'#2563eb', dark:'#1e3a8a' } }
                 }
             }
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap');
-        body { -webkit-tap-highlight-color: transparent; background-color: var(--tg-theme-bg-color, #f3f4f6); color: var(--tg-theme-text-color, #1f2937); }
+        body { -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .tab-content { display: none; animation: fadeIn 0.2s ease-out; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
-        /* Loader */
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Эффект нажатия */
+        .btn-press:active { transform: scale(0.95); opacity: 0.8; }
     </style>
 </head>
-<body class="font-sans antialiased min-h-screen pb-24 relative">
+<body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
-    <!-- === LOGIN OVERLAY (If no token) === -->
-    <div id="login-overlay" class="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col items-center justify-center p-6 hidden">
-        <div class="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mb-6">
-            <i class="fa-solid fa-user-lock text-brand-600 text-2xl"></i>
+    <!-- === LOGIN OVERLAY === -->
+    <!-- Убрали 'hidden' по умолчанию, логика JS сама скроет, если есть токен -->
+    <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-opacity duration-300">
+        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
+            <i class="fa-solid fa-shield-halved text-blue-600 text-3xl"></i>
         </div>
-        <h2 class="text-2xl font-bold mb-2 dark:text-white">Вход в CRM</h2>
-        <p class="text-gray-500 mb-6 text-center text-sm">Введите данные от личного кабинета "Мой Класс"</p>
+        <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход в Спорт.Секцию</h2>
+        <p class="text-gray-400 mb-8 text-center text-sm px-4">Используйте Email и Пароль от кабинета CRM "Мой Класс"</p>
         
-        <form id="login-form" class="w-full max-w-xs space-y-4">
-            <input type="email" id="login-email" placeholder="Email" class="w-full p-3 rounded-xl border bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white" required>
-            <input type="password" id="login-pass" placeholder="Пароль" class="w-full p-3 rounded-xl border bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-white" required>
-            <button type="submit" class="w-full bg-brand-600 text-white py-3 rounded-xl font-bold hover:bg-brand-700 transition">Войти</button>
-        </form>
-    </div>
-
-    <!-- === APP CONTAINER === -->
-    <div id="app" class="max-w-md mx-auto min-h-screen relative overflow-hidden transition-colors duration-300">
-
-        <!-- HEADER -->
-        <header class="bg-white dark:bg-gray-800 p-4 sticky top-0 z-30 shadow-sm">
-            <div class="flex justify-between items-center mb-4">
-                <div class="flex items-center gap-3">
-                    <div class="relative">
-                        <img id="header-avatar" src="https://ui-avatars.com/api/?name=U&background=random" class="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700 shadow-sm">
-                        <!-- Connection Status Dot -->
-                        <div id="api-status-dot" class="absolute bottom-0 right-0 w-3 h-3 bg-gray-400 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                        <p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Ученик</p>
-                        <h1 class="text-lg font-extrabold text-gray-900 dark:text-white leading-none" id="header-name">Загрузка...</h1>
-                    </div>
-                </div>
-                
-                <div class="flex gap-2">
-                    <div onclick="showTab('finance')" class="bg-gray-900 dark:bg-gray-700 text-white px-3 py-1.5 rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-transform cursor-pointer">
-                        <i class="fa-solid fa-wallet text-brand-500 text-xs"></i>
-                        <span class="text-xs font-bold whitespace-nowrap" id="header-balance">...</span>
-                    </div>
-                    <button onclick="logout()" class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700 text-red-500 flex items-center justify-center">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                </div>
+        <form id="login-form" class="w-full max-w-sm space-y-4">
+            <div>
+                <input type="email" id="login-email" placeholder="Email (например: parent@mail.ru)" 
+                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium" required>
+            </div>
+            <div>
+                <input type="password" id="login-pass" placeholder="Пароль" 
+                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all font-medium" required>
             </div>
             
-            <!-- Child Switcher (Hidden for Single User API, shown if multiple linked accounts implemented) -->
-            <div id="children-container" class="flex space-x-2 overflow-x-auto no-scrollbar"></div>
+            <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
+                <span>Войти</span>
+            </button>
+        </form>
+        <p class="mt-6 text-xs text-gray-400">Нет пароля? Напишите администратору.</p>
+    </div>
+
+    <!-- === MAIN APP (Скрыто до входа) === -->
+    <div id="app" class="max-w-md mx-auto min-h-screen hidden opacity-0 transition-opacity duration-500">
+        
+        <!-- Header -->
+        <header class="bg-white p-5 sticky top-0 z-30 shadow-sm flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img id="header-avatar" src="" class="w-10 h-10 rounded-full bg-gray-200 object-cover border border-gray-100">
+                <div>
+                    <h1 class="text-lg font-extrabold leading-none" id="header-name">...</h1>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase mt-1">Спортсмен</p>
+                </div>
+            </div>
+            <button onclick="logout()" class="text-gray-300 hover:text-red-500 transition px-2"><i class="fa-solid fa-right-from-bracket"></i></button>
         </header>
 
-        <!-- 1. HOME SCREEN -->
-        <div id="tab-home" class="tab-content active px-4 pt-4">
+        <!-- Content -->
+        <div class="p-5 space-y-6">
             
-            <!-- GAMIFICATION CARD (Calculated from CRM Data) -->
-            <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden mb-5">
-                <div class="absolute right-0 top-0 text-brand-50 dark:text-gray-700 opacity-50 text-9xl -mr-6 -mt-6 pointer-events-none">
-                    <i class="fa-solid fa-medal"></i>
-                </div>
+            <!-- Balance Card -->
+            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                 <div class="relative z-10">
-                    <div class="flex justify-between items-end mb-2">
-                        <div>
-                            <span class="bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 text-[10px] font-bold px-2 py-0.5 rounded mb-1 inline-block" id="home-rank-badge">Расчет уровня...</span>
-                            <h2 class="text-2xl font-extrabold text-gray-900 dark:text-white" id="home-rank">...</h2>
-                        </div>
-                        <div class="text-right">
-                            <span class="text-xl font-bold text-brand-500" id="home-xp">0</span>
-                            <span class="text-[10px] text-gray-400 font-bold uppercase">XP</span>
-                        </div>
-                    </div>
-                    <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 mb-2 overflow-hidden">
-                        <div id="xp-bar" class="bg-gradient-to-r from-brand-400 to-brand-600 h-2.5 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
-                    </div>
-                    <div class="flex justify-between text-[10px] text-gray-400">
-                        <span id="total-visits-label">Посещено занятий: 0</span>
-                        <span id="next-level-xp">до след. уровня</span>
+                    <p class="text-blue-200 text-sm font-medium mb-1">Баланс счета</p>
+                    <h2 class="text-4xl font-bold mb-4" id="balance-display">--</h2>
+                    <div class="bg-white/20 backdrop-blur-md inline-block px-3 py-1 rounded-lg text-xs font-bold">
+                        <i class="fa-solid fa-check-circle mr-1"></i> Активен
                     </div>
                 </div>
+                <i class="fa-solid fa-wallet absolute -bottom-6 -right-6 text-9xl opacity-10"></i>
             </div>
 
-            <!-- NEXT LESSON -->
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100 mb-2 px-1">Ближайшая тренировка</h3>
-            <div id="next-lesson-card" class="bg-brand-dark text-white rounded-2xl p-4 shadow-lg mb-6 relative overflow-hidden group active:scale-[0.98] transition-transform" onclick="showTab('calendar')">
-                <div class="flex justify-between items-center relative z-10">
-                    <div>
-                        <div class="flex items-center gap-2 mb-1">
-                            <span id="next-date" class="bg-white/20 px-2 py-0.5 rounded text-[10px] font-bold backdrop-blur-sm">--</span>
-                            <span id="next-time" class="text-brand-400 font-bold text-sm">--:--</span>
-                        </div>
-                        <p id="next-title" class="font-bold text-lg">Загрузка...</p>
-                        <p id="next-room" class="text-xs text-gray-300"><i class="fa-solid fa-location-dot mr-1"></i>--</p>
-                    </div>
-                    <div class="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                        <i class="fa-solid fa-chevron-right"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ACTIONS GRID -->
-             <div class="grid grid-cols-2 gap-3 mb-20">
-                <div onclick="showTab('calendar')" class="bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
-                    <div class="w-8 h-8 rounded-full bg-brand-50 text-brand-500 flex items-center justify-center mb-2">
+            <!-- Schedule Button -->
+            <button onclick="tg.showPopup({message:'Загрузка расписания...'})" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xl group-hover:bg-orange-500 group-hover:text-white transition-colors">
                         <i class="fa-solid fa-calendar-day"></i>
                     </div>
-                    <p class="font-bold text-[10px] dark:text-gray-300 leading-tight">Расписание</p>
-                </div>
-                <!-- Note: Replaced Market with Subscriptions as it's API native -->
-                <div onclick="showTab('finance')" class="bg-white dark:bg-gray-800 p-3 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 active:scale-95 transition-transform flex flex-col items-center justify-center text-center h-24">
-                    <div class="w-8 h-8 rounded-full bg-purple-50 text-purple-500 flex items-center justify-center mb-2">
-                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                    <div class="text-left">
+                        <p class="font-bold text-gray-800">Расписание</p>
+                        <p class="text-xs text-gray-400">Запись на тренировки</p>
                     </div>
-                    <p class="font-bold text-[10px] dark:text-gray-300 leading-tight">Абонементы</p>
                 </div>
-            </div>
-        </div>
-
-        <!-- 2. CALENDAR SCREEN -->
-        <div id="tab-calendar" class="tab-content px-4 pt-4">
-            <h2 class="text-xl font-extrabold text-gray-900 dark:text-white mb-4">Календарь (API)</h2>
-            <!-- Date Filter Mockup (Functionality simplified for demo) -->
-            <div class="flex gap-2 overflow-x-auto no-scrollbar mb-4" id="calendar-dates">
-                <!-- JS will populate -->
-            </div>
-            <div class="space-y-3 pb-20" id="calendar-list">
-                <div class="text-center py-10 text-gray-400"><div class="loader mx-auto mb-2"></div>Загружаем из CRM...</div>
-            </div>
-        </div>
-
-        <!-- 3. REPORTS (MAPPED TO HISTORY) -->
-        <div id="tab-reports" class="tab-content px-4 pt-4">
-            <h2 class="text-xl font-extrabold text-gray-900 dark:text-white mb-4">История посещений</h2>
-            <div id="reports-list" class="space-y-4 pb-20">
-                <div class="text-center py-10 text-gray-400">Загрузка истории...</div>
-            </div>
-        </div>
-
-        <!-- 4. FINANCE (Subscriptions) -->
-        <div id="tab-finance" class="tab-content px-4 pt-4">
-            <h2 class="text-xl font-extrabold text-gray-900 dark:text-white mb-4">Мои Абонементы</h2>
-            <div id="subs-list" class="space-y-4 pb-20">
-                <!-- JS Populated -->
-            </div>
-        </div>
-
-        <!-- BOTTOM NAV -->
-        <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 py-2 px-6 flex justify-between items-center z-40 pb-safe">
-            <button onclick="showTab('home')" class="nav-btn active text-brand-500 flex flex-col items-center" data-target="home">
-                <i class="fa-solid fa-house text-xl mb-1"></i> <span class="text-[10px] font-bold">Главная</span>
+                <i class="fa-solid fa-chevron-right text-gray-300"></i>
             </button>
-            <button onclick="showTab('calendar')" class="nav-btn text-gray-300 flex flex-col items-center" data-target="calendar">
-                <i class="fa-solid fa-calendar text-xl mb-1"></i> <span class="text-[10px] font-bold">План</span>
-            </button>
-            <button onclick="showTab('reports')" class="nav-btn text-gray-300 flex flex-col items-center" data-target="reports">
-                <i class="fa-solid fa-clock-rotate-left text-xl mb-1"></i> <span class="text-[10px] font-bold">История</span>
-            </button>
-            <button onclick="showTab('finance')" class="nav-btn text-gray-300 flex flex-col items-center" data-target="finance">
-                <i class="fa-solid fa-wallet text-xl mb-1"></i> <span class="text-[10px] font-bold">Финансы</span>
-            </button>
-        </nav>
-
+        </div>
     </div>
 
-    <!-- === LOGIC === -->
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
-        // --- API CONFIGURATION ---
-        const API_CONFIG = {
-            baseUrl: 'https://api.moyklass.com/v1/user', 
-            // NOTE: In production, CORS might be an issue if hitting directly from browser.
-            // A proxy server is recommended. For now, we assume CORS is allowed or proxied.
-            token: localStorage.getItem('mk_token') || null
-        };
+        // КОНФИГУРАЦИЯ API
+        // Используем corsproxy.io для обхода CORS блокировок браузера
+        const PROXY = 'https://corsproxy.io/?'; 
+        const API_URL = 'https://api.moyklass.com/v1/user';
+        
+        // Элементы
+        const loginOverlay = document.getElementById('login-overlay');
+        const app = document.getElementById('app');
+        const loginForm = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
 
-        // --- API SERVICE CLASS ---
-        class MoyKlassService {
-            constructor() {
-                this.headers = () => ({
-                    'x-access-token': API_CONFIG.token,
-                    'Content-Type': 'application/json'
-                });
-            }
-
-            async login(email, password) {
-                try {
-                    const response = await axios.post(`${API_CONFIG.baseUrl}/auth/login`, { email, password });
-                    if (response.data && response.data.accessToken) {
-                        API_CONFIG.token = response.data.accessToken;
-                        localStorage.setItem('mk_token', API_CONFIG.token);
-                        return true;
-                    }
-                } catch (e) {
-                    console.error("Login failed", e);
-                    throw e;
-                }
-                return false;
-            }
-
-            async getProfile() {
-                // Get basic info including balance and ID
-                const res = await axios.get(`${API_CONFIG.baseUrl}/baseInfo`, { headers: this.headers() });
-                return res.data; 
-            }
-
-            async getSubscriptions() {
-                const res = await axios.get(`${API_CONFIG.baseUrl}/subscriptions`, { headers: this.headers() });
-                return res.data; // Returns array of subscriptions
-            }
-
-            async getLessons(dateFrom, dateTo) {
-                // Fetch lessons for range
-                const res = await axios.get(`${API_CONFIG.baseUrl}/lessons`, { 
-                    headers: this.headers(),
-                    params: { dateFrom, dateTo }
-                });
-                return res.data;
-            }
-
-            async getHistory() {
-                // Fetch past records (visited/missed)
-                // Assuming /lessons endpoint can filter by past status or a separate /lessonRecords exists in User API
-                // If not documented, we filter getLessons result
-                const today = new Date().toISOString().split('T')[0];
-                const pastDate = new Date();
-                pastDate.setMonth(pastDate.getMonth() - 3);
-                
-                const res = await axios.get(`${API_CONFIG.baseUrl}/lessons`, { 
-                    headers: this.headers(),
-                    params: { dateFrom: pastDate.toISOString().split('T')[0], dateTo: today }
-                });
-                return res.data;
-            }
-
-            async bookLesson(lessonId) {
-                const res = await axios.post(`${API_CONFIG.baseUrl}/lessonRecords`, 
-                    { lessonId }, 
-                    { headers: this.headers() }
-                );
-                return res.data;
-            }
+        // Проверка токена при старте
+        const savedToken = localStorage.getItem('mk_token');
+        if(savedToken) {
+            showApp();
         }
 
-        const api = new MoyKlassService();
-
-        // --- APP LOGIC ---
-
-        async function initApp() {
-            if (!API_CONFIG.token) {
-                document.getElementById('login-overlay').classList.remove('hidden');
-                return;
-            }
+        // --- ЛОГИКА ВХОДА ---
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Останавливаем перезагрузку страницы
             
-            document.getElementById('login-overlay').classList.add('hidden');
-            updateConnectionStatus(true);
-            
-            try {
-                await loadUserProfile();
-                await loadScheduleAndNextLesson();
-                await loadHistory(); // Uses history for XP calc
-                await loadFinance();
-            } catch (e) {
-                console.error("Init Error", e);
-                if(e.response && e.response.status === 401) {
-                    logout(); // Token expired
-                } else {
-                    tg.showPopup({title: 'Ошибка', message: 'Не удалось загрузить данные из CRM'});
-                    updateConnectionStatus(false);
-                }
-            }
-        }
+            // 1. Визуальная реакция
+            const originalBtnContent = loginBtn.innerHTML;
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Входим...</span>`;
+            loginBtn.classList.add('opacity-75');
 
-        async function loadUserProfile() {
-            const data = await api.getProfile();
-            // Data usually contains: { user: { name: "...", balance: 100 }, ... }
-            
-            // Handle Structure (adjust based on exact JSON response)
-            const user = data.user || data; 
-            
-            document.getElementById('header-name').textContent = user.name || "Спортсмен";
-            document.getElementById('header-avatar').src = user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=3b82f6&color=fff`;
-            
-            // Balance logic
-            document.getElementById('header-balance').textContent = `${user.balance || 0} ₽`;
-        }
-
-        async function loadFinance() {
-            const subs = await api.getSubscriptions(); // Array
-            const container = document.getElementById('subs-list');
-            container.innerHTML = '';
-
-            if(!subs || subs.length === 0) {
-                container.innerHTML = '<div class="text-center text-gray-400 p-5">Нет активных абонементов</div>';
-                return;
-            }
-
-            subs.forEach(sub => {
-                // Calculate days left
-                const endDate = new Date(sub.finishDate || sub.dateTo); // Adjust field name based on API
-                const today = new Date();
-                const diffTime = Math.abs(endDate - today);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                const isExpired = today > endDate;
-
-                const html = `
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                        <div class="flex justify-between items-start mb-2">
-                            <h3 class="font-bold text-lg dark:text-white">${sub.name || 'Абонемент'}</h3>
-                            <span class="${isExpired ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} text-xs font-bold px-2 py-1 rounded">
-                                ${isExpired ? 'Истек' : 'Активен'}
-                            </span>
-                        </div>
-                        <p class="text-sm text-gray-500 mb-4">Остаток: <span class="font-bold text-brand-600">${sub.visitCount || 0} занятий</span></p>
-                        <p class="text-xs text-gray-400">Действует до: ${endDate.toLocaleDateString()}</p>
-                    </div>
-                `;
-                container.innerHTML += html;
-            });
-        }
-
-        // --- GAMIFICATION ENGINE (Calculated from API) ---
-        function calculateGamification(history) {
-            // Count "visited" status
-            const visited = history.filter(l => l.visitStatus === 1 || l.status === 1).length; // Check API docs for 'visited' value
-            
-            // Algorithm: Level = 1 + (Visits / 10)
-            const level = Math.floor(visited / 10) + 1;
-            const currentLevelBase = (level - 1) * 10;
-            const nextLevelBase = level * 10;
-            const xpInLevel = visited - currentLevelBase;
-            const xpNeeded = 10; // Simple linear progression
-
-            // Update UI
-            document.getElementById('home-rank').textContent = getRankTitle(level);
-            document.getElementById('home-rank-badge').textContent = `Уровень ${level}`;
-            document.getElementById('home-xp').textContent = visited * 10; // Total XP
-            document.getElementById('total-visits-label').textContent = `Посещено: ${visited}`;
-            document.getElementById('next-level-xp').textContent = `${10 - xpInLevel} занятий до след. уровня`;
-
-            const percent = (xpInLevel / xpNeeded) * 100;
-            document.getElementById('xp-bar').style.width = `${percent}%`;
-        }
-
-        function getRankTitle(level) {
-            if (level === 1) return "Новичок";
-            if (level === 2) return "Любитель";
-            if (level === 3) return "Продвинутый";
-            if (level > 3) return "Мастер Спорта";
-            return "Новичок";
-        }
-
-        // --- SCHEDULE & HISTORY ---
-
-        async function loadScheduleAndNextLesson() {
-            // Get next 7 days
-            const today = new Date();
-            const nextWeek = new Date();
-            nextWeek.setDate(today.getDate() + 14);
-
-            const lessons = await api.getLessons(today.toISOString().split('T')[0], nextWeek.toISOString().split('T')[0]);
-            
-            // 1. Find Next Lesson (First one that is NOT cancelled)
-            // MoyKlass status: usually 0=planned, 1=visited, 2=missed, 3=cancelled. Check docs.
-            const upcoming = lessons.find(l => new Date(l.date + 'T' + l.beginTime) > new Date() && l.status !== 3);
-            
-            if (upcoming) {
-                document.getElementById('next-title').textContent = upcoming.className || upcoming.name || "Тренировка";
-                document.getElementById('next-time').textContent = upcoming.beginTime;
-                document.getElementById('next-date').textContent = new Date(upcoming.date).toLocaleDateString('ru-RU', {day:'numeric', month:'short'});
-                document.getElementById('next-room').innerHTML = `<i class="fa-solid fa-location-dot mr-1"></i>${upcoming.roomId || 'Зал'}`;
-                document.getElementById('next-lesson-card').onclick = () => showTab('calendar');
-            } else {
-                document.getElementById('next-title').textContent = "Нет записей";
-                document.getElementById('next-time').textContent = "--:--";
-            }
-
-            // 2. Render List
-            const container = document.getElementById('calendar-list');
-            container.innerHTML = '';
-            
-            if (lessons.length === 0) {
-                 container.innerHTML = '<div class="text-center py-10 text-gray-400">Нет занятий на ближайшие дни</div>';
-                 return;
-            }
-
-            lessons.forEach(l => {
-                const date = new Date(l.date);
-                const dayName = date.toLocaleDateString('ru-RU', {weekday: 'short'}).toUpperCase();
-                const dayNum = date.getDate();
-                
-                // Determine Interaction
-                // If booked (status 1?) -> Green. If open -> Button.
-                // Assuming `l.recorded` boolean exists or we check `userRecords`
-                const isBooked = l.recorded === true; // Check API response field for "isUserRecorded"
-                
-                let btn = '';
-                if(isBooked) {
-                    btn = `<span class="text-green-600 text-xs font-bold"><i class="fa-solid fa-check"></i> Вы идете</span>`;
-                } else {
-                    btn = `<button onclick="doBook(${l.id}, '${l.name}')" class="bg-brand-50 text-brand-600 px-3 py-1.5 rounded-lg text-xs font-bold">Записаться</button>`;
-                }
-
-                const html = `
-                    <div class="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border-l-4 ${isBooked ? 'border-green-500' : 'border-brand-500'} flex gap-4 items-center">
-                        <div class="flex flex-col items-center justify-center w-12 border-r border-gray-100 dark:border-gray-700 pr-2">
-                            <span class="text-xs text-gray-400 font-bold">${dayName}</span>
-                            <span class="text-lg font-bold dark:text-white">${dayNum}</span>
-                        </div>
-                        <div class="flex-1">
-                            <p class="font-bold text-gray-800 dark:text-gray-200">${l.className || l.name}</p>
-                            <p class="text-xs text-gray-500">${l.beginTime} - ${l.endTime}</p>
-                        </div>
-                        <div>${btn}</div>
-                    </div>
-                `;
-                container.innerHTML += html;
-            });
-        }
-
-        async function loadHistory() {
-            // Get last 3 months
-            const history = await api.getHistory();
-            calculateGamification(history); // Update XP based on this
-
-            const container = document.getElementById('reports-list');
-            container.innerHTML = '';
-            
-            // Filter only past visited/missed lessons
-            const pastLessons = history.filter(l => new Date(l.date) < new Date()).reverse();
-
-            if(pastLessons.length === 0) {
-                container.innerHTML = '<div class="text-center text-gray-400 mt-5">История пуста</div>';
-                return;
-            }
-
-            pastLessons.forEach(l => {
-                // Determine status
-                // status: 1=visited, 2=missed (Example mapping)
-                const isVisited = l.visitStatus === 1; 
-                const statusBadge = isVisited 
-                    ? `<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">+10 XP</span>` 
-                    : `<span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Пропуск</span>`;
-
-                const html = `
-                <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wide">${l.date}</span>
-                            <h3 class="font-bold text-gray-800 dark:text-gray-200">${l.className || l.name}</h3>
-                        </div>
-                        ${statusBadge}
-                    </div>
-                    <p class="text-xs text-gray-500">${l.comment ? `Комментарий: ${l.comment}` : 'Без комментария'}</p>
-                </div>`;
-                container.innerHTML += html;
-            });
-        }
-
-        // --- ACTIONS ---
-
-        async function doBook(id, title) {
-            tg.MainButton.setText(`Записаться: ${title}`);
-            tg.MainButton.show();
-            
-            tg.MainButton.onClick(async () => {
-                tg.MainButton.showProgress();
-                try {
-                    await api.bookLesson(id);
-                    tg.MainButton.hideProgress();
-                    tg.MainButton.hide();
-                    tg.showPopup({title:'Успешно', message:'Вы записаны!'});
-                    loadScheduleAndNextLesson(); // Refresh
-                } catch (e) {
-                    tg.MainButton.hideProgress();
-                    tg.showPopup({title:'Ошибка', message:'Не удалось записаться. Возможно, нет мест.'});
-                }
-            });
-        }
-
-        // --- LOGIN/LOGOUT ---
-
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
             const email = document.getElementById('login-email').value;
-            const pass = document.getElementById('login-pass').value;
-            
-            const success = await api.login(email, pass);
-            if (success) {
-                initApp();
-            } else {
-                tg.showPopup({title:'Ошибка', message:'Неверный логин или пароль'});
+            const password = document.getElementById('login-pass').value;
+
+            try {
+                // 2. Запрос к API через Прокси
+                // Мы кодируем целевой URL, чтобы прокси его понял
+                const targetUrl = encodeURIComponent(`${API_URL}/auth/login`);
+                
+                console.log("Отправка запроса...");
+                
+                // ВНИМАНИЕ: Используем axios для запроса
+                const response = await axios.post(`${PROXY}${API_URL}/auth/login`, 
+                    { email, password },
+                    { 
+                        headers: { 'Content-Type': 'application/json' }
+                    }
+                );
+
+                console.log("Ответ получен:", response.data);
+
+                if (response.data && response.data.accessToken) {
+                    // Успех!
+                    localStorage.setItem('mk_token', response.data.accessToken);
+                    
+                    // Вибрация успеха (если в Telegram)
+                    tg.HapticFeedback.notificationOccurred('success');
+                    
+                    showApp();
+                } else {
+                    throw new Error('Нет токена в ответе');
+                }
+
+            } catch (error) {
+                console.error(error);
+                
+                // Вибрация ошибки
+                tg.HapticFeedback.notificationOccurred('error');
+                
+                let errorMsg = 'Ошибка соединения';
+                if (error.response) {
+                    // Ошибка от сервера (например, неверный пароль)
+                    if(error.response.status === 401) errorMsg = 'Неверный Email или Пароль';
+                    else errorMsg = `Ошибка сервера: ${error.response.status}`;
+                }
+                
+                alert("❌ " + errorMsg + "\nПопробуйте еще раз.");
+            } finally {
+                // 3. Возвращаем кнопку в исходное состояние
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalBtnContent;
+                loginBtn.classList.remove('opacity-75');
             }
         });
 
+        // --- ЗАГРУЗКА ДАННЫХ ПРИЛОЖЕНИЯ ---
+        async function showApp() {
+            // Прячем логин, показываем приложение
+            loginOverlay.style.opacity = '0';
+            setTimeout(() => {
+                loginOverlay.style.display = 'none';
+                app.classList.remove('hidden');
+                // Небольшая задержка для плавности
+                setTimeout(() => app.classList.remove('opacity-0'), 50);
+            }, 300);
+
+            // Загружаем данные профиля
+            loadProfile();
+        }
+
+        async function loadProfile() {
+            try {
+                const token = localStorage.getItem('mk_token');
+                if(!token) return;
+
+                const response = await axios.get(`${PROXY}${API_URL}/baseInfo`, {
+                    headers: { 'x-access-token': token }
+                });
+                
+                const user = response.data;
+                document.getElementById('header-name').textContent = user.name || "Пользователь";
+                document.getElementById('balance-display').textContent = (user.balance || 0).toLocaleString() + ' ₽';
+                document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${user.name}&background=random`;
+
+            } catch (error) {
+                console.error("Ошибка загрузки профиля", error);
+                if(error.response && error.response.status === 401) {
+                    logout(); // Токен протух
+                }
+            }
+        }
+
         function logout() {
-            localStorage.removeItem('mk_token');
-            location.reload();
+            if(confirm('Выйти из аккаунта?')) {
+                localStorage.removeItem('mk_token');
+                location.reload();
+            }
         }
-
-        function updateConnectionStatus(online) {
-            const dot = document.getElementById('api-status-dot');
-            dot.classList.remove(online ? 'bg-red-500' : 'bg-green-500');
-            dot.classList.add(online ? 'bg-green-500' : 'bg-red-500');
-        }
-
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-            
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                const isActive = btn.dataset.target === tabId;
-                btn.classList.toggle('text-brand-500', isActive);
-                btn.classList.toggle('text-gray-300', !isActive);
-            });
-            tg.MainButton.hide();
-            
-            // Auto-refresh data on tab switch
-            if(tabId === 'calendar') loadScheduleAndNextLesson();
-            if(tabId === 'finance') loadFinance();
-            if(tabId === 'reports') loadHistory();
-        }
-
-        // START
-        initApp();
-
     </script>
 </body>
 </html>
