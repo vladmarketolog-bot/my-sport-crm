@@ -55,7 +55,7 @@
         </button>
         
         <!-- Error Debug Area -->
-        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100"></div>
+        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100 font-mono"></div>
     </div>
 
     <!-- === MAIN APP === -->
@@ -126,15 +126,17 @@
         tg.expand();
 
         // ==========================================
-        // НАСТРОЙКИ (Ключ вставлен)
+        // НАСТРОЙКИ
         // ==========================================
         
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
         
-        // Список прокси для надежности
+        // ОБНОВЛЕННЫЙ СПИСОК ПРОКСИ
+        // Эти прокси лучше сохраняют заголовки (API Key)
         const PROXIES = [
             'https://corsproxy.io/?',
-            'https://api.allorigins.win/raw?url='
+            'https://thingproxy.freeboard.io/fetch/',
+            'https://api.codetabs.com/v1/proxy?quest='
         ];
         
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
@@ -169,8 +171,6 @@
             e.preventDefault(); 
             errorBox.classList.add('hidden');
             
-            // Получаем чистый номер (unmaskedValue)
-            // IMask вернет только цифры. Например: 79001234567
             const rawPhone = mask.unmaskedValue; 
             
             if (rawPhone.length < 10) {
@@ -183,39 +183,28 @@
             loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Поиск...';
 
             try {
-                // CRM может хранить номер в разных форматах (8900..., 7900..., +7900...).
-                // Попробуем поискать по rawPhone (обычно это 79...)
-                
                 console.log("Searching user by phone:", rawPhone);
+                // Поиск пользователя
                 const users = await apiCall(`/users?phone=${rawPhone}`); 
 
                 console.log('Найденные пользователи:', users);
 
                 if (users && users.length > 0) {
-                    // Берем первого найденного
                     const user = users[0];
-                    
-                    // Сохраняем ID
                     localStorage.setItem('mk_user_id', user.id);
                     localStorage.removeItem('is_demo');
-                    
                     tg.HapticFeedback.notificationOccurred('success');
                     startApp(false);
                 } else {
-                    // Если не нашли с 7..., попробуем обрезать первую цифру и поискать
-                    // (иногда ищут по маске %900...)
-                    // Но для простоты пока оставим строгий поиск.
-                    throw new Error('Ученик с таким номером не найден. Проверьте правильность ввода.');
+                    throw new Error('Ученик с таким номером не найден.');
                 }
 
             } catch (error) {
                 console.error(error);
                 tg.HapticFeedback.notificationOccurred('error');
                 
-                let msg = error.message;
-                if(msg.includes('Failed to fetch')) msg = 'Ошибка сети. Попробуйте еще раз.';
-                
-                errorBox.innerText = msg;
+                // Вывод ошибки пользователю для диагностики
+                errorBox.innerText = `Ошибка: ${error.message}`;
                 errorBox.classList.remove('hidden');
             } finally {
                 loginBtn.disabled = false;
@@ -225,6 +214,8 @@
 
         // --- ФУНКЦИЯ ЗАПРОСА К API (АВТО-ПРОКСИ) ---
         async function apiCall(endpoint) {
+            let errorDetails = [];
+
             for (const proxyUrl of PROXIES) {
                 try {
                     const targetUrl = `${API_BASE}${endpoint}`;
@@ -241,29 +232,41 @@
                         }
                     });
 
-                    // Читаем текст, потом парсим, чтобы отловить ошибки прокси
+                    // Читаем текст ответа
                     const text = await response.text();
+                    
                     let data;
                     try {
                         data = JSON.parse(text);
                     } catch(e) {
-                        console.warn("Proxy returned non-JSON:", text.substring(0, 50));
-                        continue; // Попробуем следующий прокси
+                        // Если прокси вернул HTML или мусор
+                        console.warn(`Proxy ${proxyUrl} invalid JSON`);
+                        errorDetails.push(`${proxyUrl}: Invalid JSON`);
+                        continue; 
                     }
 
                     if (response.ok) {
                         return data;
                     }
                     
+                    // Если API вернуло 401, значит ключ неверный или не прошел через прокси
                     if (response.status === 401) {
-                         throw new Error('Ошибка ключа API (401)');
+                         console.warn(`Proxy ${proxyUrl} 401 Unauthorized`);
+                         errorDetails.push(`${proxyUrl}: 401 (Auth Failed)`);
+                         continue;
                     }
+                    
+                    errorDetails.push(`${proxyUrl}: ${response.status}`);
+
                 } catch (e) {
-                    console.warn(`Proxy failed`, e);
-                    if (e.message.includes('API')) throw e;
+                    console.warn(`Proxy ${proxyUrl} network error`, e);
+                    errorDetails.push(`${proxyUrl}: Net Error`);
                 }
             }
-            throw new Error('Не удалось соединиться с сервером CRM.');
+            
+            // Если мы здесь, значит все прокси провалились
+            console.error("All proxies failed:", errorDetails);
+            throw new Error(`Не удалось соединиться с CRM. Детали: ${errorDetails.join(', ')}`);
         }
 
         // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
@@ -292,14 +295,8 @@
                 const userId = localStorage.getItem('mk_user_id');
                 if (!userId) { logout(); return; }
 
-                // 1. Получаем данные ученика
                 const user = await apiCall(`/users/${userId}`);
                 
-                // 2. Получаем Записи на уроки (чтобы узнать следующий)
-                // Для этого нужен join (records).
-                // API endpoint: /lessons?userIds={id} (некоторые версии) или /lessonRecords?userId={id}
-                
-                // Обновляем базовый UI
                 updateUI({
                     name: user.name,
                     balance: user.balance || 0,
@@ -310,31 +307,27 @@
                     nextLesson: "Загрузка..."
                 });
                 
-                // Дозагрузка расписания
                 loadNextLesson(userId);
 
             } catch (e) {
                 console.error(e);
-                document.getElementById('header-name').innerText = "Ошибка загрузки";
+                document.getElementById('header-name').innerText = "Ошибка";
             }
         }
 
         async function loadNextLesson(userId) {
             try {
-                // Ищем уроки пользователя на неделю вперед
                 const today = new Date();
                 const nextWeek = new Date();
-                nextWeek.setDate(today.getDate() + 14); // 2 недели
+                nextWeek.setDate(today.getDate() + 14);
                 
                 const dateFrom = today.toISOString().split('T')[0];
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                // В Company API уроки конкретного юзера ищутся через фильтр
-                // (зависит от версии API, пробуем стандартный)
+                // Company API использует userIds[] (массив)
                 const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
                 
                 if (lessons && lessons.length > 0) {
-                     // Фильтруем прошедшие по времени сегодня
                      const now = new Date();
                      const futureLessons = lessons.filter(l => {
                          const lDate = new Date(`${l.date}T${l.beginTime}`);
@@ -343,7 +336,6 @@
 
                      if (futureLessons.length > 0) {
                         const next = futureLessons[0];
-                        // Форматируем дату
                         const dateObj = new Date(next.date);
                         const day = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
                         document.getElementById('next-lesson-info').innerText = `${day}, ${next.beginTime}`;
