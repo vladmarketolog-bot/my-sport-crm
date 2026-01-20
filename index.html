@@ -8,7 +8,6 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Input Mask for Phone -->
     <script src="https://unpkg.com/imask"></script>
     
     <script>
@@ -27,7 +26,6 @@
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Лог для отладки */
         #debug-log {
             font-family: monospace;
             font-size: 10px;
@@ -38,14 +36,14 @@
 </head>
 <body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
-    <!-- === LOGIN SCREEN (PHONE ONLY) === -->
+    <!-- === LOGIN SCREEN === -->
     <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300 overflow-y-auto">
         <div class="w-full max-w-sm flex flex-col items-center pt-10">
             <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
-                <i class="fa-solid fa-mobile-screen-button text-blue-600 text-3xl"></i>
+                <i class="fa-solid fa-bolt text-blue-600 text-3xl"></i>
             </div>
-            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход по номеру</h2>
-            <p class="text-gray-400 mb-8 text-center text-sm px-4">Введите номер телефона, который вы указывали при регистрации в клубе.</p>
+            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Прямой вход</h2>
+            <p class="text-gray-400 mb-8 text-center text-sm px-4">Вход по номеру телефона (прямое соединение).</p>
             
             <form id="login-form" class="w-full space-y-4">
                 <div>
@@ -54,17 +52,17 @@
                 </div>
                 
                 <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
-                    <span>Найти меня</span>
+                    <span>Войти</span>
                 </button>
             </form>
 
-            <button onclick="enableDemoMode()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
-                Войти в Демо-версию (без API)
+            <button onclick="forceDemo()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
+                Демо-режим (Тест интерфейса)
             </button>
 
             <!-- Debug Log Area -->
             <div id="debug-container" class="w-full mt-6 hidden">
-                <p class="text-xs text-gray-400 mb-1">Журнал соединения:</p>
+                <p class="text-xs text-gray-400 mb-1">Статус соединения:</p>
                 <div id="debug-log" class="w-full bg-gray-900 text-green-400 p-3 rounded-lg h-32 overflow-y-auto shadow-inner border border-gray-700"></div>
             </div>
         </div>
@@ -88,8 +86,8 @@
         <!-- Content -->
         <div class="p-5 space-y-6 fade-in">
             
-            <div id="demo-badge" class="hidden bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-2 rounded-lg text-center mb-2">
-                <i class="fa-solid fa-circle-info mr-1"></i> ДЕМО РЕЖИМ
+            <div id="demo-badge" class="hidden bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-2 rounded-lg text-center mb-2 shadow-sm border border-yellow-200">
+                <i class="fa-solid fa-wifi text-yellow-600 mr-1"></i> Офлайн режим
             </div>
 
             <!-- Balance Card -->
@@ -98,14 +96,14 @@
                     <p class="text-blue-200 text-sm font-medium mb-1">Баланс счета</p>
                     <h2 class="text-4xl font-bold mb-4" id="balance-display">--</h2>
                     <div class="bg-white/20 backdrop-blur-md inline-block px-3 py-1 rounded-lg text-xs font-bold">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Статус активен
+                        <i class="fa-solid fa-check-circle mr-1"></i> Активен
                     </div>
                 </div>
                 <i class="fa-solid fa-wallet absolute -bottom-6 -right-6 text-9xl opacity-10"></i>
             </div>
 
             <!-- Schedule Button -->
-            <button onclick="tg.showPopup({message:'Расписание загружается...'})" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
+            <button class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
                 <div class="flex items-center gap-4">
                     <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xl group-hover:bg-orange-500 group-hover:text-white transition-colors">
                         <i class="fa-solid fa-calendar-day"></i>
@@ -138,30 +136,16 @@
         tg.expand();
 
         // ==========================================
-        // НАСТРОЙКИ
+        // НАСТРОЙКИ (ПРЯМОЕ СОЕДИНЕНИЕ)
         // ==========================================
         
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
-        
-        // ОБНОВЛЕННЫЙ СПИСОК ПРОКСИ С ALLORIGINS
-        const PROXIES = [
-            // AllOrigins заворачивает ответ в JSON {contents: "..."}, это мы обработаем в коде
-            'https://api.allorigins.win/get?url=',
-            'https://corsproxy.io/?',
-            'https://api.codetabs.com/v1/proxy?quest='
-        ];
-        
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
 
-        // Инициализация маски ввода телефона
-        const phoneInput = document.getElementById('login-phone');
-        const maskOptions = { 
-            mask: '+{7} (000) 000-00-00',
-            lazy: false 
-        };
-        const mask = IMask(phoneInput, maskOptions);
+        // ==========================================
 
-        let isDemo = false;
+        const phoneInput = document.getElementById('login-phone');
+        const mask = IMask(phoneInput, { mask: '+{7} (000) 000-00-00', lazy: false });
         
         const loginOverlay = document.getElementById('login-overlay');
         const app = document.getElementById('app');
@@ -169,17 +153,11 @@
         const debugLog = document.getElementById('debug-log');
         const loginBtn = document.getElementById('login-btn');
 
-        // Проверка сохраненного входа
         const savedUserId = localStorage.getItem('mk_user_id');
-        const savedDemo = localStorage.getItem('is_demo');
-
         if (savedUserId) {
             startApp(false);
-        } else if (savedDemo === 'true') {
-            enableDemoMode();
         }
 
-        // Логгер
         function log(msg, type = 'info') {
             const time = new Date().toLocaleTimeString();
             const color = type === 'error' ? 'text-red-400' : (type === 'success' ? 'text-green-400' : 'text-gray-300');
@@ -188,64 +166,62 @@
             console.log(msg);
         }
 
-        // --- ЛОГИКА ВХОДА ПО ТЕЛЕФОНУ ---
+        // --- ЛОГИКА ВХОДА ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault(); 
-            
-            // Показываем лог
             debugContainer.classList.remove('hidden');
             debugLog.innerHTML = ''; 
-            log('Начало поиска пользователя...');
+            log('Инициализация прямого соединения...');
             
             const rawPhone = mask.unmaskedValue; 
-            
             if (rawPhone.length < 10) {
-                log('Ошибка: Номер слишком короткий', 'error');
-                tg.showPopup({message: 'Пожалуйста, введите полный номер телефона'});
+                tg.showPopup({message: 'Введите полный номер'});
                 return;
             }
 
             const originalText = loginBtn.innerText;
             loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Подключение...';
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Соединение...';
 
             try {
-                // Поиск по нескольким форматам
-                let formatsToCheck = [rawPhone];
-                if (rawPhone.startsWith('7')) {
-                    formatsToCheck.push('8' + rawPhone.substring(1));
-                    formatsToCheck.push(rawPhone.substring(1)); 
-                }
+                let formats = [rawPhone];
+                if (rawPhone.startsWith('7')) formats.push('8' + rawPhone.substring(1));
                 
                 let foundUser = null;
 
-                for (let phone of formatsToCheck) {
-                    log(`Ищем по номеру: ${phone}`);
+                for (let phone of formats) {
+                    log(`Запрос пользователя по номеру: ${phone}`);
                     try {
                         const users = await apiCall(`/users?phone=${phone}`);
                         if (users && users.length > 0) {
                             foundUser = users[0];
-                            log(`Нашел пользователя: ${foundUser.name}`, 'success');
+                            log(`Пользователь найден: ${foundUser.name}`, 'success');
                             break;
                         } else {
-                            log(`Нет результата для ${phone}`);
+                            log(`Пользователь не найден по номеру ${phone}`);
                         }
                     } catch (err) {
-                        log(`Ошибка запроса (${phone}): ${err.message}`, 'error');
+                        log(`Ошибка запроса: ${err.message}`, 'error');
+                        // Если ошибка CORS, сразу сообщаем
+                        if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
+                            throw new Error('CORS Блокировка: Браузер запретил прямой запрос к API.');
+                        }
                     }
                 }
 
                 if (foundUser) {
                     localStorage.setItem('mk_user_id', foundUser.id);
-                    localStorage.removeItem('is_demo');
                     tg.HapticFeedback.notificationOccurred('success');
                     startApp(false);
                 } else {
-                    throw new Error('Ученик с таким номером не найден в базе.');
+                    if (debugLog.innerText.includes('CORS')) {
+                        throw new Error('Браузер блокирует прямое соединение (CORS). Нужен прокси или бэкенд.');
+                    }
+                    tg.showPopup({message: 'Номер не найден в базе.'});
                 }
 
             } catch (error) {
-                log(`ФАТАЛЬНО: ${error.message}`, 'error');
+                log(`КРИТИЧЕСКАЯ ОШИБКА: ${error.message}`, 'error');
                 tg.HapticFeedback.notificationOccurred('error');
             } finally {
                 loginBtn.disabled = false;
@@ -253,92 +229,38 @@
             }
         });
 
-        // --- ФУНКЦИЯ ЗАПРОСА К API (УЛУЧШЕННАЯ ОБРАБОТКА ПРОКСИ) ---
+        // --- ПРЯМОЙ ЗАПРОС (БЕЗ ПРОКСИ) ---
         async function apiCall(endpoint) {
-            let lastError = null;
-
-            for (const proxyUrl of PROXIES) {
-                try {
-                    const targetUrl = `${API_BASE}${endpoint}`;
-                    // AllOrigins требует закодированный URL
-                    const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
-                    
-                    log(`Прокси: ${new URL(proxyUrl).hostname}...`);
-                    
-                    const response = await fetch(fullUrl, {
-                        method: 'GET',
-                        // Важно: allorigins не передает заголовки в бесплатной версии корректно,
-                        // поэтому для него мы рассчитываем на то, что CRM может не требовать Auth для простых GET (редко),
-                        // ЛИБО мы используем другие прокси.
-                        // Но если мы используем corsproxy.io, заголовки нужны.
-                        headers: {
-                            'x-access-token': COMPANY_API_KEY, 
-                            'Accept': 'application/json'
-                        }
-                    });
-
-                    if (!response.ok) {
-                        log(`HTTP Error ${response.status}`, 'error');
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    // Читаем текст ответа
-                    const text = await response.text();
-                    let data;
-
-                    // СПЕЦИАЛЬНАЯ ОБРАБОТКА ALLORIGINS
-                    // Он возвращает JSON вида { contents: "РЕАЛЬНЫЙ_ОТВЕТ_В_СТРОКЕ", status: ... }
-                    if (proxyUrl.includes('allorigins')) {
-                        try {
-                            const wrapper = JSON.parse(text);
-                            if (wrapper.contents) {
-                                // Пытаемся распарсить внутренний контент
-                                // Иногда это строка, иногда уже объект (редко)
-                                if (typeof wrapper.contents === 'string') {
-                                    data = JSON.parse(wrapper.contents);
-                                } else {
-                                    data = wrapper.contents;
-                                }
-                            } else {
-                                throw new Error('Allorigins: empty contents');
-                            }
-                        } catch (parseErr) {
-                            log('Ошибка парсинга ответа Allorigins', 'error');
-                            throw parseErr;
-                        }
-                    } 
-                    // ОБЫЧНАЯ ОБРАБОТКА (CorsProxy и др)
-                    else {
-                        try {
-                            data = JSON.parse(text);
-                        } catch(e) {
-                            log(`Невалидный JSON от прокси`, 'error');
-                            continue; 
-                        }
-                    }
-
-                    // Проверка на ошибки внутри API ответа
-                    if (data && (data.code || (data.message && !data.id && !Array.isArray(data)))) {
-                         log(`API Error: ${JSON.stringify(data)}`, 'error');
-                         // Если 401 - значит ключ не подходит
-                         if (data.code === 401 || JSON.stringify(data).includes('401')) {
-                             throw new Error('401 Unauthorized (Check API Key)');
-                         }
-                    }
-
-                    return data;
-
-                } catch (e) {
-                    log(`Сбой: ${e.message}`, 'error');
-                    lastError = e;
-                }
-            }
+            const url = `${API_BASE}${endpoint}`;
             
-            throw new Error(`Связь отсутствует. Проверьте интернет или VPN.`);
+            log(`GET ${url}`);
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'x-access-token': COMPANY_API_KEY, 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    log(`HTTP Status: ${response.status}`, 'error');
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+
+            } catch (error) {
+                console.error(error);
+                throw error; // Пробрасываем ошибку выше
+            }
         }
 
-        // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
-        async function startApp(demoMode) {
+        // --- APP START ---
+        function startApp(isDemo) {
             loginOverlay.style.opacity = '0';
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
@@ -346,24 +268,26 @@
                 setTimeout(() => app.classList.remove('opacity-0'), 50);
             }, 300);
 
-            if (demoMode) {
+            if (isDemo) {
+                document.getElementById('demo-badge').classList.remove('hidden');
                 updateUI({
-                    name: "Иван Петров (Демо)",
-                    balance: 5000,
-                    stats: { visited: 12, className: "PRO" },
-                    nextLesson: "Завтра в 19:00"
+                    name: "Демо Ученик",
+                    balance: 9999,
+                    stats: { visited: 100, className: "Master" },
+                    nextLesson: "Завтра, 12:00"
                 });
             } else {
-                await loadRealData();
+                loadRealData();
             }
+        }
+
+        function forceDemo() {
+            startApp(true);
         }
 
         async function loadRealData() {
             try {
                 const userId = localStorage.getItem('mk_user_id');
-                if (!userId) { logout(); return; }
-
-                log('Загрузка профиля...');
                 const user = await apiCall(`/users/${userId}`);
                 
                 updateUI({
@@ -376,47 +300,39 @@
                     nextLesson: "Загрузка..."
                 });
                 
-                log('Загрузка уроков...');
-                loadNextLesson(userId);
-
+                loadSchedule(userId);
             } catch (e) {
-                console.error(e);
-                log(`Ошибка данных: ${e.message}`, 'error');
-                document.getElementById('header-name').innerText = "Ошибка";
+                log('Ошибка загрузки данных профиля', 'error');
+                document.getElementById('demo-badge').classList.remove('hidden');
+                document.getElementById('demo-badge').innerHTML = 'Ошибка соединения';
             }
         }
 
-        async function loadNextLesson(userId) {
+        async function loadSchedule(userId) {
             try {
-                const today = new Date();
+                const today = new Date().toISOString().split('T')[0];
                 const nextWeek = new Date();
-                nextWeek.setDate(today.getDate() + 14);
-                
-                const dateFrom = today.toISOString().split('T')[0];
+                nextWeek.setDate(new Date().getDate() + 14);
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
+                const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${today}&dateTo=${dateTo}`);
                 
                 if (lessons && lessons.length > 0) {
-                     const now = new Date();
-                     const futureLessons = lessons.filter(l => {
-                         const lDate = new Date(`${l.date}T${l.beginTime}`);
-                         return lDate > now;
-                     });
-
-                     if (futureLessons.length > 0) {
-                        const next = futureLessons[0];
-                        const dateObj = new Date(next.date);
-                        const day = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
-                        document.getElementById('next-lesson-info').innerText = `${day}, ${next.beginTime}`;
-                     } else {
-                        document.getElementById('next-lesson-info').innerText = "Нет будущих записей";
-                     }
+                    const now = new Date();
+                    const future = lessons.filter(l => new Date(`${l.date}T${l.beginTime}`) > now);
+                    
+                    if (future.length > 0) {
+                        const next = future[0];
+                        const d = new Date(next.date);
+                        const dateStr = d.toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
+                        document.getElementById('next-lesson-info').innerText = `${dateStr}, ${next.beginTime}`;
+                    } else {
+                        document.getElementById('next-lesson-info').innerText = "Нет записей";
+                    }
                 } else {
-                     document.getElementById('next-lesson-info').innerText = "Нет записей";
+                    document.getElementById('next-lesson-info').innerText = "Нет записей";
                 }
             } catch (e) {
-                console.error("Lesson load error", e);
                 document.getElementById('next-lesson-info').innerText = "--";
             }
         }
@@ -430,15 +346,8 @@
             if(data.nextLesson) document.getElementById('next-lesson-info').innerText = data.nextLesson;
         }
 
-        function enableDemoMode() {
-            isDemo = true;
-            localStorage.setItem('is_demo', 'true');
-            document.getElementById('demo-badge').classList.remove('hidden');
-            startApp(true);
-        }
-
         function logout() {
-            if(confirm('Выйти из аккаунта?')) {
+            if(confirm('Выйти?')) {
                 localStorage.clear();
                 location.reload();
             }
