@@ -60,10 +60,15 @@
             <button onclick="forceDemo()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
                 Демо-режим
             </button>
+            
+            <!-- Browser Mode Indicator -->
+            <div id="browser-indicator" class="hidden mt-4 text-xs text-orange-500 font-bold bg-orange-50 px-3 py-1 rounded-full">
+                <i class="fa-solid fa-earth-americas"></i> Режим браузера (без Telegram)
+            </div>
 
             <!-- Debug Log Area -->
             <div id="debug-container" class="w-full mt-6 hidden">
-                <p class="text-xs text-gray-400 mb-1">Статус:</p>
+                <p class="text-xs text-gray-400 mb-1">Диагностика:</p>
                 <div id="debug-log" class="w-full bg-gray-900 text-green-400 p-3 rounded-lg h-32 overflow-y-auto shadow-inner border border-gray-700"></div>
             </div>
         </div>
@@ -132,16 +137,38 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        // Инициализация Telegram WebApp
+        let tg = window.Telegram.WebApp;
+        
+        // --- ПРОВЕРКА ОКРУЖЕНИЯ (Браузер или Telegram) ---
+        // Если platform == unknown, скорее всего мы в браузере
+        const isBrowser = !tg.initDataUnsafe || Object.keys(tg.initDataUnsafe).length === 0;
+
+        if (isBrowser) {
+            console.log("Запущено в браузере. Эмуляция Telegram...");
+            document.getElementById('browser-indicator').classList.remove('hidden');
+            
+            // Подменяем методы Telegram, чтобы они работали в браузере
+            tg = {
+                ready: () => console.log('TG Ready (Mock)'),
+                expand: () => console.log('TG Expand (Mock)'),
+                showPopup: (params) => alert(params.message || params.title), // Замена попапа на alert
+                HapticFeedback: {
+                    notificationOccurred: () => console.log('Vibrate (Mock)'),
+                    impactOccurred: () => console.log('Impact (Mock)')
+                }
+            };
+        } else {
+            tg.ready();
+            tg.expand();
+        }
 
         // ==========================================
         // НАСТРОЙКИ
         // ==========================================
         
-        // Ссылка на ваш Google Script (Обновлено)
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvfj64g5EmcSwsLA6UVXg7pkSMLC3-7MQB20Yk0_7btzMhmyNyaQ8GnZ7H0S_gtx8N/exec'; 
+        // ВАШ GOOGLE СКРИПТ
+        const GOOGLE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxvfj64g5EmcSwsLA6UVXg7pkSMLC3-7MQB20Yk0_7btzMhmyNyaQ8GnZ7H0S_gtx8N/exec'; 
 
         // ==========================================
 
@@ -173,14 +200,15 @@
             debugContainer.classList.remove('hidden');
             debugLog.innerHTML = ''; 
             
-            if (!GOOGLE_SCRIPT_URL) {
-                log('ОШИБКА: Вставьте ссылку GOOGLE_SCRIPT_URL в код!', 'error');
+            if (!GOOGLE_PROXY_URL) {
+                log('ОШИБКА: Нет ссылки Google Proxy!', 'error');
                 return;
             }
 
             log('Старт поиска через Google...');
             
             const rawPhone = mask.unmaskedValue; 
+            
             if (rawPhone.length < 10) {
                 tg.showPopup({message: 'Введите полный номер'});
                 return;
@@ -191,8 +219,6 @@
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Соединение...';
 
             try {
-                // Пытаемся найти пользователя по номеру телефона
-                // Перебираем форматы, так как CRM может хранить по-разному
                 let formats = [rawPhone];
                 if (rawPhone.startsWith('7')) {
                     formats.push('8' + rawPhone.substring(1));
@@ -205,15 +231,16 @@
                     log(`Ищем: ${phone}`);
                     try {
                         const users = await apiCall(`/users`, { phone: phone });
+                        
                         if (users && users.length > 0) {
                             foundUser = users[0];
-                            log(`Нашел ID: ${foundUser.id}`, 'success');
+                            log(`Найден ID: ${foundUser.id}`, 'success');
                             break;
                         } else {
-                            log(`Не найден по ${phone}`);
+                            log(`Пустой ответ`, 'error');
                         }
                     } catch (err) {
-                        log(`Ошибка: ${err.message}`, 'error');
+                        log(`Сбой: ${err.message}`, 'error');
                     }
                 }
 
@@ -222,53 +249,58 @@
                     tg.HapticFeedback.notificationOccurred('success');
                     startApp(false);
                 } else {
-                    tg.showPopup({message: 'Номер не найден в базе.'});
-                    log('Пользователь не найден', 'error');
+                    tg.showPopup({message: 'Пользователь не найден'});
+                    log('Ничего не найдено.', 'error');
                 }
 
             } catch (error) {
                 log(`КРИТИЧЕСКАЯ ОШИБКА: ${error.message}`, 'error');
-                tg.HapticFeedback.notificationOccurred('error');
             } finally {
                 loginBtn.disabled = false;
                 loginBtn.innerText = originalText;
             }
         });
 
-        // --- API CALL ЧЕРЕЗ GOOGLE APPS SCRIPT ---
+        // --- API CALL ЧЕРЕЗ GOOGLE ---
         async function apiCall(endpoint, params = {}) {
             // Формируем URL для Google Script
-            const url = new URL(GOOGLE_SCRIPT_URL);
+            const url = new URL(GOOGLE_PROXY_URL);
             url.searchParams.append("path", endpoint);
             
             for (const key in params) {
                 url.searchParams.append(key, params[key]);
             }
             
-            log(`Запрос к Google Script...`);
+            log(`Запрос к Google...`);
             
             try {
                 const response = await fetch(url.toString(), {
-                    method: 'GET' 
+                    method: 'GET'
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error(`Google HTTP ${response.status}`);
                 }
 
-                const data = await response.json();
+                const text = await response.text();
                 
-                // Проверка на ошибку, которую мы сами возвращаем из скрипта
-                if (data.error) {
-                    log(`GAS Error: ${data.error}`, 'error');
-                    throw new Error(data.error);
+                // Проверка на HTML (ошибка прав доступа)
+                if (text.trim().startsWith('<')) {
+                    log('Google вернул HTML. Установите "Anyone" в настройках деплоя.', 'error');
+                    throw new Error('Google Permissions Error');
+                }
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch(e) {
+                    log(`Невалидный JSON: ${text.substring(0,20)}`, 'error');
+                    throw new Error('JSON Parse Error');
                 }
                 
-                // Проверка на ошибку API CRM внутри ответа
-                if (data.code || (data.message && !Array.isArray(data) && !data.id)) {
-                    log(`CRM Error: ${JSON.stringify(data)}`, 'error');
-                    throw new Error('API Error');
-                }
+                // Проверка ошибок внутри JSON
+                if (data.error) throw new Error(data.error);
+                if (data.code) throw new Error(`CRM Error: ${data.message}`);
 
                 return data; // УСПЕХ
 
@@ -333,7 +365,7 @@
                 nextWeek.setDate(new Date().getDate() + 14);
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                // Передаем параметры как объект, чтобы apiCall их добавил в URL
+                // Параметры для Google Script
                 const lessons = await apiCall(`/lessons`, {
                     "userIds[]": userId,
                     "dateFrom": today,
