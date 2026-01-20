@@ -43,8 +43,8 @@
             <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
                 <i class="fa-solid fa-rocket text-blue-600 text-3xl"></i>
             </div>
-            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Личный прокси</h2>
-            <p class="text-gray-400 mb-8 text-center text-sm px-4">Вход через защищенный канал Cloudflare.</p>
+            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход (Ваш Прокси)</h2>
+            <p class="text-gray-400 mb-8 text-center text-sm px-4">Соединение через личный шлюз Cloudflare.</p>
             
             <form id="login-form" class="w-full space-y-4">
                 <div>
@@ -143,7 +143,7 @@
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
 
-        // ВАШ ЛИЧНЫЙ ПРОКСИ
+        // ВАШ ЛИЧНЫЙ ПРОКСИ (Обновлено!)
         const OWN_PROXY = 'https://my-sport-crm.potapov-path.workers.dev'; 
 
         // ==========================================
@@ -176,12 +176,6 @@
             debugContainer.classList.remove('hidden');
             debugLog.innerHTML = ''; 
             
-            if (!OWN_PROXY) {
-                log('ОШИБКА: Не указан OWN_PROXY в коде!', 'error');
-                alert('Пожалуйста, создайте Worker и вставьте ссылку в переменную OWN_PROXY в коде.');
-                return;
-            }
-
             log('Старт поиска...');
             
             const rawPhone = mask.unmaskedValue; 
@@ -204,12 +198,12 @@
                 let foundUser = null;
 
                 for (let phone of formats) {
-                    log(`Запрос пользователя: ${phone}`);
+                    log(`Запрос по номеру: ${phone}`);
                     try {
                         const users = await apiCall(`/users?phone=${phone}`);
                         if (users && users.length > 0) {
                             foundUser = users[0];
-                            log(`Успех! ID: ${foundUser.id}`, 'success');
+                            log(`Нашел ID: ${foundUser.id}`, 'success');
                             break;
                         } else {
                             log(`Пользователь не найден`, 'error');
@@ -236,15 +230,14 @@
             }
         });
 
-        // --- API CALL ЧЕРЕЗ СВОЙ ПРОКСИ ---
+        // --- API CALL ЧЕРЕЗ ВАШ ПРОКСИ ---
         async function apiCall(endpoint) {
-            // Формируем URL для нашего воркера
-            // Убираем слэш в конце прокси, если он есть
+            // Формируем URL для вашего воркера
             const cleanProxy = OWN_PROXY.replace(/\/$/, "");
             const targetUrl = `${API_BASE}${endpoint}`;
             const proxyUrl = `${cleanProxy}?url=${encodeURIComponent(targetUrl)}`;
             
-            log(`Proxy req -> ${endpoint}`);
+            log(`Запрос к Cloudflare Worker...`);
             
             try {
                 const response = await fetch(proxyUrl, {
@@ -264,8 +257,13 @@
                 
                 // Проверка на ошибку API внутри
                 if (data.code || (data.message && !Array.isArray(data) && !data.id)) {
-                    log(`API Error: ${JSON.stringify(data)}`, 'error');
-                    throw new Error('API Error');
+                    log(`Ответ API: ${JSON.stringify(data)}`, 'error');
+                    
+                    // Если API жалуется на ключ, значит прокси его не передал
+                    if(JSON.stringify(data).includes('x-access-token')) {
+                        throw new Error('Прокси не передал ключ (Header strip).');
+                    }
+                    throw new Error('Ошибка API');
                 }
 
                 return data; // УСПЕХ
