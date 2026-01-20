@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Sports Academy Super App</title>
+    <title>Sports Academy (Demo)</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Input Mask for Phone -->
     <script src="https://unpkg.com/imask"></script>
     
     <script>
@@ -27,396 +26,190 @@
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
-        #debug-log {
-            font-family: monospace;
-            font-size: 10px;
-            line-height: 1.2;
-            white-space: pre-wrap;
-        }
+        /* Плавное переключение табов */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease-out; }
     </style>
 </head>
 <body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
     <!-- === LOGIN SCREEN === -->
-    <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300 overflow-y-auto">
-        <div class="w-full max-w-sm flex flex-col items-center pt-10">
-            <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
-                <i class="fa-brands fa-google text-blue-600 text-3xl"></i>
-            </div>
-            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход (Google Proxy)</h2>
-            <p class="text-gray-400 mb-8 text-center text-sm px-4">Стабильное соединение через Google Cloud.</p>
-            
-            <form id="login-form" class="w-full space-y-4">
-                <div>
-                    <input type="tel" id="login-phone" placeholder="+7 (900) 000-00-00" 
-                        class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-lg text-center tracking-wider" required>
-                </div>
-                
-                <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
-                    <span>Найти меня</span>
-                </button>
-            </form>
-
-            <button onclick="forceDemo()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
-                Демо-режим
-            </button>
-            
-            <!-- Browser Mode Indicator -->
-            <div id="browser-indicator" class="hidden mt-4 text-xs text-orange-500 font-bold bg-orange-50 px-3 py-1 rounded-full">
-                <i class="fa-solid fa-earth-americas"></i> Режим браузера
-            </div>
-
-            <!-- Debug Log Area -->
-            <div id="debug-container" class="w-full mt-6 hidden">
-                <p class="text-xs text-gray-400 mb-1">Диагностика:</p>
-                <div id="debug-log" class="w-full bg-gray-900 text-green-400 p-3 rounded-lg h-32 overflow-y-auto shadow-inner border border-gray-700"></div>
-            </div>
+    <div id="login-screen" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6">
+        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
+            <i class="fa-solid fa-trophy text-blue-600 text-3xl"></i>
         </div>
+        <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Спорт Академия</h2>
+        <p class="text-gray-400 mb-8 text-center text-sm px-4">Мобильный кабинет родителя</p>
+        
+        <form id="login-form" class="w-full space-y-4 max-w-sm">
+            <div>
+                <input type="tel" id="login-phone" placeholder="+7 (900) 000-00-00" 
+                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-lg text-center tracking-wider" required>
+            </div>
+            
+            <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all">
+                Войти
+            </button>
+        </form>
+        <p class="mt-6 text-xs text-gray-400">Версия: 1.0.0 (Offline Prototype)</p>
     </div>
 
     <!-- === MAIN APP === -->
-    <div id="app" class="max-w-md mx-auto min-h-screen hidden opacity-0 transition-opacity duration-500">
+    <div id="app-screen" class="max-w-md mx-auto min-h-screen hidden">
         
         <!-- Header -->
         <header class="bg-white p-5 sticky top-0 z-30 shadow-sm flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <img id="header-avatar" src="" class="w-10 h-10 rounded-full bg-gray-200 object-cover border border-gray-100">
+                <img src="https://ui-avatars.com/api/?name=Ivan+Petrov&background=random" class="w-10 h-10 rounded-full bg-gray-200 object-cover border border-gray-100">
                 <div>
-                    <h1 class="text-lg font-extrabold leading-none" id="header-name">...</h1>
-                    <p class="text-[10px] text-gray-400 font-bold uppercase mt-1">Спортсмен</p>
+                    <h1 class="text-lg font-extrabold leading-none">Иван Петров</h1>
+                    <p class="text-[10px] text-gray-400 font-bold uppercase mt-1">Группа PRO</p>
                 </div>
             </div>
             <button onclick="logout()" class="text-gray-300 hover:text-red-500 transition px-2"><i class="fa-solid fa-right-from-bracket"></i></button>
         </header>
 
-        <!-- Content -->
-        <div class="p-5 space-y-6 fade-in">
-            
-            <div id="demo-badge" class="hidden bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-2 rounded-lg text-center mb-2 shadow-sm border border-yellow-200">
-                <i class="fa-solid fa-wifi text-yellow-600 mr-1"></i> Офлайн режим
-            </div>
-
+        <!-- TAB: HOME -->
+        <div id="tab-home" class="tab-content active p-5 space-y-6">
             <!-- Balance Card -->
             <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
                 <div class="relative z-10">
                     <p class="text-blue-200 text-sm font-medium mb-1">Баланс счета</p>
-                    <h2 class="text-4xl font-bold mb-4" id="balance-display">--</h2>
+                    <h2 class="text-4xl font-bold mb-4">4 500 ₽</h2>
                     <div class="bg-white/20 backdrop-blur-md inline-block px-3 py-1 rounded-lg text-xs font-bold">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Статус активен
+                        <i class="fa-solid fa-check-circle mr-1"></i> Абонемент активен
                     </div>
                 </div>
                 <i class="fa-solid fa-wallet absolute -bottom-6 -right-6 text-9xl opacity-10"></i>
             </div>
 
-            <!-- Schedule Button -->
-            <button class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
+            <!-- Next Lesson -->
+            <div class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform" onclick="switchTab('calendar')">
                 <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xl group-hover:bg-orange-500 group-hover:text-white transition-colors">
+                    <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xl">
                         <i class="fa-solid fa-calendar-day"></i>
                     </div>
                     <div class="text-left">
-                        <p class="font-bold text-gray-800">Расписание</p>
-                        <p class="text-xs text-gray-400">Ближайшая: <span id="next-lesson-info">Загрузка...</span></p>
+                        <p class="font-bold text-gray-800">Завтра, 18:00</p>
+                        <p class="text-xs text-gray-400">Групповая тренировка</p>
                     </div>
                 </div>
                 <i class="fa-solid fa-chevron-right text-gray-300"></i>
-            </button>
+            </div>
             
-            <!-- Stats -->
+            <!-- Stats Grid -->
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center">
-                    <span class="text-2xl font-bold text-brand-600" id="stat-visited">0</span>
-                    <span class="text-xs text-gray-400">Посещений</span>
+                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center h-28">
+                    <span class="text-3xl font-bold text-brand-600 mb-1">12</span>
+                    <span class="text-xs text-gray-400 font-bold uppercase">Посещений</span>
                 </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center">
-                    <span class="text-2xl font-bold text-green-500" id="stat-class">Group</span>
-                    <span class="text-xs text-gray-400">Класс</span>
+                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center h-28">
+                    <span class="text-3xl font-bold text-green-500 mb-1">5</span>
+                    <span class="text-xs text-gray-400 font-bold uppercase">Пропусков</span>
                 </div>
             </div>
         </div>
+
+        <!-- TAB: CALENDAR -->
+        <div id="tab-calendar" class="tab-content p-5 space-y-4">
+            <h2 class="text-xl font-bold mb-4">Расписание</h2>
+            
+            <!-- Lesson Item (Active) -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-green-500 flex justify-between items-center">
+                <div>
+                    <p class="font-bold">Завтра, 18:00</p>
+                    <p class="text-xs text-gray-500">Групповая • Зал №1</p>
+                </div>
+                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Вы идете</span>
+            </div>
+
+            <!-- Lesson Item (Available) -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-gray-200 flex justify-between items-center">
+                <div>
+                    <p class="font-bold">25 Окт, 18:00</p>
+                    <p class="text-xs text-gray-500">Спарринги • Зал №2</p>
+                </div>
+                <button onclick="mockBook(this)" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition">
+                    Записаться
+                </button>
+            </div>
+
+             <!-- Lesson Item (Available) -->
+             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-gray-200 flex justify-between items-center">
+                <div>
+                    <p class="font-bold">28 Окт, 19:00</p>
+                    <p class="text-xs text-gray-500">ОФП • Зал №1</p>
+                </div>
+                <button onclick="mockBook(this)" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition">
+                    Записаться
+                </button>
+            </div>
+        </div>
+
+        <!-- BOTTOM NAV -->
+        <nav class="fixed bottom-0 w-full max-w-md bg-white border-t border-gray-100 flex justify-around py-3 pb-safe z-40">
+            <button onclick="switchTab('home')" class="nav-btn text-blue-600 flex flex-col items-center w-full" id="nav-home">
+                <i class="fa-solid fa-house text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">Главная</span>
+            </button>
+            <button onclick="switchTab('calendar')" class="nav-btn text-gray-400 flex flex-col items-center w-full" id="nav-calendar">
+                <i class="fa-solid fa-calendar text-xl mb-1"></i>
+                <span class="text-[10px] font-bold">План</span>
+            </button>
+        </nav>
     </div>
 
     <script>
-        // --- БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ TELEGRAM ---
-        let tg = {
-            ready: () => {},
-            expand: () => {},
-            showPopup: (params) => alert(params.message || params.title),
-            HapticFeedback: {
-                notificationOccurred: () => {},
-                impactOccurred: () => {}
-            }
-        };
-
-        try {
-            if (window.Telegram && window.Telegram.WebApp) {
-                tg = window.Telegram.WebApp;
-                tg.ready();
-                tg.expand();
-            } else {
-                console.log('Telegram WebApp not found, using fallback.');
-                document.getElementById('browser-indicator').classList.remove('hidden');
-            }
-        } catch (e) {
-            console.error('TG Init error:', e);
-        }
-
-        // Безопасная функция для вызова методов TG
-        function safeTgAction(action) {
-            try {
-                if (tg && typeof action === 'function') action(tg);
-            } catch (e) {
-                console.warn('TG Action Failed:', e);
-            }
-        }
-
-        // ==========================================
-        // НАСТРОЙКИ
-        // ==========================================
-        
-        // ВАШ GOOGLE СКРИПТ (Обновлено!)
-        const GOOGLE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPinLf4XFcgk9KLf1kOOOEiTueo9YxVAsCyIyZz43wuzATMFDUXu8jOfPVsrQr9DiSoA/exec'; 
-        
-        // ВАШ НОВЫЙ КЛЮЧ
-        const COMPANY_API_KEY = '01q9ZAKA0ARYnn0ctnnl2LrcQMuYTTvnzTUFtJZF6bQwKLsvMvI6'; 
-
-        // ==========================================
-
+        // Init Phone Mask
         const phoneInput = document.getElementById('login-phone');
-        const mask = IMask(phoneInput, { mask: '+{7} (000) 000-00-00', lazy: false });
-        
-        const loginOverlay = document.getElementById('login-overlay');
-        const app = document.getElementById('app');
-        const debugContainer = document.getElementById('debug-container');
-        const debugLog = document.getElementById('debug-log');
-        const loginBtn = document.getElementById('login-btn');
+        IMask(phoneInput, { mask: '+{7} (000) 000-00-00' });
 
-        const savedUserId = localStorage.getItem('mk_user_id');
-        if (savedUserId) {
-            startApp(false);
-        }
-
-        function log(msg, type = 'info') {
-            const time = new Date().toLocaleTimeString();
-            const color = type === 'error' ? 'text-red-400' : (type === 'success' ? 'text-green-400' : 'text-gray-300');
-            debugLog.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
-            debugLog.scrollTop = debugLog.scrollHeight;
-            console.log(msg);
-        }
-
-        // --- ЛОГИКА ВХОДА ---
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault(); 
-            debugContainer.classList.remove('hidden');
-            debugLog.innerHTML = ''; 
+        // Logic
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
             
-            if (!GOOGLE_PROXY_URL) {
-                log('ОШИБКА: Нет ссылки Google Proxy!', 'error');
-                return;
-            }
-
-            log('Старт поиска через Google...');
+            // Имитация загрузки
+            const btn = e.target.querySelector('button');
+            const originalText = btn.innerText;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Вход...';
             
-            const rawPhone = mask.unmaskedValue; 
-            
-            if (rawPhone.length < 10) {
-                safeTgAction(t => t.showPopup({message: 'Введите полный номер'}));
-                return;
-            }
-
-            const originalText = loginBtn.innerText;
-            loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Соединение...';
-
-            try {
-                let formats = [rawPhone];
-                if (rawPhone.startsWith('7')) {
-                    formats.push('8' + rawPhone.substring(1));
-                    formats.push(rawPhone.substring(1));
-                }
-                
-                let foundUser = null;
-
-                for (let phone of formats) {
-                    log(`Ищем: ${phone}`);
-                    try {
-                        const users = await apiCall(`/users`, { phone: phone });
-                        
-                        if (users && users.length > 0) {
-                            foundUser = users[0];
-                            log(`Найден ID: ${foundUser.id}`, 'success');
-                            break;
-                        } else {
-                            log(`Пустой ответ`, 'error');
-                        }
-                    } catch (err) {
-                        log(`Сбой: ${err.message}`, 'error');
-                    }
-                }
-
-                if (foundUser) {
-                    localStorage.setItem('mk_user_id', foundUser.id);
-                    safeTgAction(t => t.HapticFeedback.notificationOccurred('success'));
-                    startApp(false);
-                } else {
-                    safeTgAction(t => t.showPopup({message: 'Пользователь не найден. Проверьте номер.'}));
-                    log('Ничего не найдено.', 'error');
-                }
-
-            } catch (error) {
-                log(`КРИТИЧЕСКАЯ ОШИБКА: ${error.message}`, 'error');
-            } finally {
-                loginBtn.disabled = false;
-                loginBtn.innerText = originalText;
-            }
+            setTimeout(() => {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-screen').classList.remove('hidden');
+                document.getElementById('app-screen').classList.add('fade-in');
+            }, 1000);
         });
 
-        // --- API CALL ЧЕРЕЗ GOOGLE ---
-        async function apiCall(endpoint, params = {}) {
-            const url = new URL(GOOGLE_PROXY_URL);
-            url.searchParams.append("path", endpoint);
-            url.searchParams.append("key", COMPANY_API_KEY); // ПЕРЕДАЕМ КЛЮЧ
+        function switchTab(tab) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Show target
+            document.getElementById('tab-' + tab).classList.add('active');
             
-            for (const key in params) {
-                url.searchParams.append(key, params[key]);
-            }
-            
-            log(`Запрос к Google...`);
-            
-            try {
-                const response = await fetch(url.toString(), {
-                    method: 'GET'
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Google HTTP ${response.status}`);
-                }
-
-                const text = await response.text();
-                
-                if (text.trim().startsWith('<')) {
-                    log('Google вернул HTML. Проверьте Deploy > Web App > Anyone', 'error');
-                    throw new Error('Google Permissions Error');
-                }
-
-                let data;
-                try {
-                    data = JSON.parse(text);
-                } catch(e) {
-                    log(`Невалидный JSON: ${text.substring(0,20)}`, 'error');
-                    throw new Error('JSON Parse Error');
-                }
-                
-                // Проверка ошибок внутри JSON
-                if (data.error) throw new Error(data.error);
-                if (data.code === 'Unauthorized') {
-                    log('CRM: Ключ отклонен. Проверьте, обновили ли вы скрипт.', 'error');
-                    throw new Error('Invalid API Key');
-                }
-                if (data.code) throw new Error(`CRM Error: ${data.message}`);
-
-                return data; // УСПЕХ
-
-            } catch (e) {
-                throw e;
-            }
+            // Update Nav colors
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.replace('text-blue-600', 'text-gray-400'));
+            document.getElementById('nav-' + tab).classList.replace('text-gray-400', 'text-blue-600');
         }
 
-        // --- APP START ---
-        function startApp(isDemo) {
-            loginOverlay.style.opacity = '0';
+        function mockBook(btn) {
+            // Имитация записи
+            const originalText = btn.innerText;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+            
             setTimeout(() => {
-                loginOverlay.style.display = 'none';
-                app.classList.remove('hidden');
-                setTimeout(() => app.classList.remove('opacity-0'), 50);
-            }, 300);
-
-            if (isDemo) {
-                document.getElementById('demo-badge').classList.remove('hidden');
-                updateUI({
-                    name: "Демо Ученик",
-                    balance: 9999,
-                    stats: { visited: 100, className: "Master" },
-                    nextLesson: "Завтра, 12:00"
-                });
-            } else {
-                loadRealData();
-            }
-        }
-
-        function forceDemo() {
-            startApp(true);
-        }
-
-        async function loadRealData() {
-            try {
-                const userId = localStorage.getItem('mk_user_id');
-                const user = await apiCall(`/users/${userId}`);
+                btn.parentElement.classList.replace('border-gray-200', 'border-green-500');
+                btn.outerHTML = '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold fade-in">Вы идете</span>';
                 
-                updateUI({
-                    name: user.name,
-                    balance: user.balance || 0,
-                    stats: { 
-                        visited: user.visitedCount || 0, 
-                        className: (user.statusId ? 'Активен' : 'Новичок') 
-                    },
-                    nextLesson: "Загрузка..."
-                });
-                
-                loadSchedule(userId);
-            } catch (e) {
-                log('Ошибка профиля', 'error');
-                document.getElementById('demo-badge').classList.remove('hidden');
-                document.getElementById('demo-badge').innerHTML = 'Сбой сети';
-            }
-        }
-
-        async function loadSchedule(userId) {
-            try {
-                const today = new Date().toISOString().split('T')[0];
-                const nextWeek = new Date();
-                nextWeek.setDate(new Date().getDate() + 14);
-                const dateTo = nextWeek.toISOString().split('T')[0];
-
-                // Параметры для Google Script
-                const lessons = await apiCall(`/lessons`, {
-                    "userIds[]": userId,
-                    "dateFrom": today,
-                    "dateTo": dateTo
-                });
-                
-                if (lessons && lessons.length > 0) {
-                    const now = new Date();
-                    const future = lessons.filter(l => new Date(`${l.date}T${l.beginTime}`) > now);
-                    
-                    if (future.length > 0) {
-                        const next = future[0];
-                        const d = new Date(next.date);
-                        const dateStr = d.toLocaleDateString('ru-RU', {day:'numeric', month:'long'});
-                        document.getElementById('next-lesson-info').innerText = `${dateStr}, ${next.beginTime}`;
-                    } else {
-                        document.getElementById('next-lesson-info').innerText = "Нет записей";
-                    }
-                } else {
-                    document.getElementById('next-lesson-info').innerText = "Нет записей";
+                // Haptic feedback if in Telegram
+                if(window.Telegram?.WebApp?.HapticFeedback) {
+                    window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
                 }
-            } catch (e) {
-                document.getElementById('next-lesson-info').innerText = "--";
-            }
-        }
-
-        function updateUI(data) {
-            document.getElementById('header-name').innerText = data.name;
-            document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${data.name}&background=random`;
-            document.getElementById('balance-display').innerText = `${data.balance} ₽`;
-            document.getElementById('stat-visited').innerText = data.stats.visited;
-            document.getElementById('stat-class').innerText = data.stats.className;
-            if(data.nextLesson) document.getElementById('next-lesson-info').innerText = data.nextLesson;
+            }, 800);
         }
 
         function logout() {
-            if(confirm('Выйти?')) {
-                localStorage.clear();
+            if(confirm('Выйти из демо-режима?')) {
                 location.reload();
             }
         }
