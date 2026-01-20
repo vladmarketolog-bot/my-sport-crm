@@ -136,8 +136,6 @@
         tg.expand();
 
         // КОНФИГУРАЦИЯ
-        // Используем corsproxy.io (он часто надежнее для User API)
-        // Если снова 400 - значит скорее всего неверный Email/Пароль или тип аккаунта
         const PROXY = 'https://corsproxy.io/?'; 
         const API_URL = 'https://api.moyklass.com/v1/user';
         
@@ -168,55 +166,60 @@
             loginBtn.disabled = true;
             loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Проверка...';
             
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-pass').value;
+            // TRIM inputs to remove accidental spaces!
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-pass').value.trim();
 
             try {
-                // Прямой вызов через прокси
+                // Используем fetch для полного контроля (axios иногда добавляет лишнее или конфликтует с прокси)
                 const targetUrl = `${API_URL}/auth/login`;
-                // corsproxy.io требует кодированный URL в некоторых версиях, 
-                // но в новой версии работает прямой append: https://corsproxy.io/?https://...
-                const proxyUrl = `${PROXY}${encodeURIComponent(targetUrl)}`; // Попробуем кодированный вариант для надежности
+                const proxyUrl = `${PROXY}${encodeURIComponent(targetUrl)}`;
                 
-                // ВАЖНО: При работе через прокси заголовки могут теряться.
-                // Мы отправляем простой запрос.
-                const response = await axios.get(`${PROXY}${targetUrl}`, {
-                     // Хайк: corsproxy иногда лучше работает с GET запросами, но MoyKlass требует POST.
-                     // Мы используем axios.post
-                });
-                
-                // Переключаемся на честный POST
-                const res = await axios({
-                    method: 'post',
-                    url: `${PROXY}${targetUrl}`,
-                    data: { email, password },
-                    headers: { 'Content-Type': 'application/json' },
-                    validateStatus: () => true // Чтобы не падало в catch сразу при 400
+                console.log('Sending request to:', proxyUrl);
+
+                const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
                 });
 
-                console.log('Status:', res.status);
-                console.log('Data:', res.data);
+                // Пытаемся прочитать JSON ответ в любом случае
+                let data = {};
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    console.warn('Response is not JSON:', jsonError);
+                }
 
-                if (res.status === 200 && res.data.accessToken) {
-                    localStorage.setItem('mk_token', res.data.accessToken);
+                if (response.ok && data.accessToken) {
+                    localStorage.setItem('mk_token', data.accessToken);
                     localStorage.removeItem('is_demo');
                     tg.HapticFeedback.notificationOccurred('success');
                     startApp(false);
                 } else {
-                    // Обработка ошибок от API
-                    let msg = 'Ошибка входа';
-                    if(res.status === 400 || res.status === 401) {
-                        msg = 'Неверный Email или Пароль. (Убедитесь, что это Email ученика, а не администратора)';
-                    }
-                    if(res.data && res.data.message) msg += ` (${res.data.message})`;
+                    console.error('API Error:', response.status, data);
                     
+                    let msg = `Ошибка ${response.status}`;
+                    
+                    // Расшифровка ошибок
+                    if(response.status === 400) msg = "Некорректные данные (400). Проверьте формат Email.";
+                    if(response.status === 401) msg = "Неверный логин или пароль.";
+                    if(response.status === 500) msg = "Ошибка на сервере CRM.";
+                    
+                    // Если сервер прислал текст ошибки
+                    if(data.message) msg += `\nCRM: ${data.message}`;
+                    if(data.error) msg += `\nDetails: ${JSON.stringify(data.error)}`;
+
                     throw new Error(msg);
                 }
 
             } catch (error) {
                 console.error(error);
                 tg.HapticFeedback.notificationOccurred('error');
-                errorBox.textContent = error.message || 'Ошибка сети или прокси.';
+                errorBox.innerText = error.message || 'Ошибка сети';
                 errorBox.classList.remove('hidden');
             } finally {
                 loginBtn.disabled = false;
@@ -253,20 +256,32 @@
         async function loadRealData() {
             try {
                 const token = localStorage.getItem('mk_token');
-                // Запрос профиля
-                const res = await axios.get(`${PROXY}${API_URL}/baseInfo`, {
-                    headers: { 'x-access-token': token }
+                // Запрос профиля через fetch
+                const targetUrl = `${API_URL}/baseInfo`;
+                const proxyUrl = `${PROXY}${encodeURIComponent(targetUrl)}`;
+                
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: { 
+                        'x-access-token': token,
+                        'Accept': 'application/json'
+                    }
                 });
-                const user = res.data;
-                setUserData(user.name, user.balance || 0, (user.balance || 0) * 500, "Загрузка..."); // Примерный баланс в рублях
+                
+                if(!response.ok) {
+                    if(response.status === 401) logout();
+                    throw new Error('Failed to load profile');
+                }
+
+                const user = await response.json();
+                setUserData(user.name, user.balance || 0, (user.balance || 0) * 500, "Загрузка..."); 
                 
                 // Тут можно догрузить расписание...
                 document.getElementById('next-lesson-info').innerText = "Данные получены";
 
             } catch (e) {
                 console.error(e);
-                if(e.response && e.response.status === 401) logout();
-                else document.getElementById('next-lesson-info').innerText = "Ошибка обновления";
+                document.getElementById('next-lesson-info').innerText = "Ошибка обновления";
             }
         }
 
