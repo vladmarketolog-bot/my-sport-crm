@@ -31,7 +31,6 @@
 <body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
     <!-- === LOGIN OVERLAY === -->
-    <!-- Убрали 'hidden' по умолчанию, логика JS сама скроет, если есть токен -->
     <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-opacity duration-300">
         <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
             <i class="fa-solid fa-shield-halved text-blue-600 text-3xl"></i>
@@ -53,6 +52,10 @@
                 <span>Войти</span>
             </button>
         </form>
+        
+        <!-- Error Debug Area -->
+        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full break-words text-center border border-red-100"></div>
+
         <p class="mt-6 text-xs text-gray-400">Нет пароля? Напишите администратору.</p>
     </div>
 
@@ -108,8 +111,8 @@
         tg.expand();
 
         // КОНФИГУРАЦИЯ API
-        // Используем corsproxy.io для обхода CORS блокировок браузера
-        const PROXY = 'https://corsproxy.io/?'; 
+        // Используем более стабильный прокси для POST запросов
+        const PROXY = 'https://thingproxy.freeboard.io/fetch/'; 
         const API_URL = 'https://api.moyklass.com/v1/user';
         
         // Элементы
@@ -117,6 +120,7 @@
         const app = document.getElementById('app');
         const loginForm = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');
+        const errorBox = document.getElementById('error-box');
 
         // Проверка токена при старте
         const savedToken = localStorage.getItem('mk_token');
@@ -126,9 +130,10 @@
 
         // --- ЛОГИКА ВХОДА ---
         loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Останавливаем перезагрузку страницы
+            e.preventDefault(); 
             
-            // 1. Визуальная реакция
+            // Сброс UI
+            errorBox.classList.add('hidden');
             const originalBtnContent = loginBtn.innerHTML;
             loginBtn.disabled = true;
             loginBtn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span>Входим...</span>`;
@@ -138,50 +143,69 @@
             const password = document.getElementById('login-pass').value;
 
             try {
-                // 2. Запрос к API через Прокси
-                // Мы кодируем целевой URL, чтобы прокси его понял
-                const targetUrl = encodeURIComponent(`${API_URL}/auth/login`);
-                
-                console.log("Отправка запроса...");
-                
-                // ВНИМАНИЕ: Используем axios для запроса
-                const response = await axios.post(`${PROXY}${API_URL}/auth/login`, 
-                    { email, password },
+                // Прямой запрос URL для прокси
+                const fullUrl = `${PROXY}${API_URL}/auth/login`;
+                console.log("Отправка запроса на:", fullUrl);
+
+                const response = await axios.post(fullUrl, 
+                    { email: email, password: password },
                     { 
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
                     }
                 );
 
-                console.log("Ответ получен:", response.data);
+                console.log("Успешный ответ:", response.data);
 
                 if (response.data && response.data.accessToken) {
-                    // Успех!
                     localStorage.setItem('mk_token', response.data.accessToken);
-                    
-                    // Вибрация успеха (если в Telegram)
                     tg.HapticFeedback.notificationOccurred('success');
-                    
                     showApp();
                 } else {
-                    throw new Error('Нет токена в ответе');
+                    throw new Error('Токен не получен (пустой ответ)');
                 }
 
             } catch (error) {
-                console.error(error);
-                
-                // Вибрация ошибки
+                console.error("Ошибка:", error);
                 tg.HapticFeedback.notificationOccurred('error');
                 
-                let errorMsg = 'Ошибка соединения';
+                let errorMsg = 'Неизвестная ошибка';
+                let devInfo = '';
+
                 if (error.response) {
-                    // Ошибка от сервера (например, неверный пароль)
-                    if(error.response.status === 401) errorMsg = 'Неверный Email или Пароль';
-                    else errorMsg = `Ошибка сервера: ${error.response.status}`;
+                    // Сервер ответил ошибкой (4xx, 5xx)
+                    const status = error.response.status;
+                    const data = error.response.data;
+
+                    if (status === 400) {
+                        errorMsg = 'Неверный запрос (400). Проверьте данные.';
+                    } else if (status === 401 || status === 403) {
+                        errorMsg = 'Неверный Email или Пароль';
+                    } else if (status === 500) {
+                        errorMsg = 'Ошибка на сервере CRM';
+                    } else {
+                        errorMsg = `Ошибка сервера: ${status}`;
+                    }
+                    
+                    // Попытка достать текст ошибки из JSON ответа
+                    if (data && typeof data === 'object') {
+                        // МойКласс часто шлет детали в поле message или error
+                        devInfo = data.message || data.error || JSON.stringify(data);
+                    }
+                } else if (error.request) {
+                    // Запрос ушел, но ответа нет (сеть)
+                    errorMsg = 'Ошибка сети. Сервер не отвечает.';
+                } else {
+                    errorMsg = error.message;
                 }
-                
-                alert("❌ " + errorMsg + "\nПопробуйте еще раз.");
+
+                // Показываем ошибку пользователю
+                errorBox.textContent = `${errorMsg} ${devInfo ? '(' + devInfo + ')' : ''}`;
+                errorBox.classList.remove('hidden');
+
             } finally {
-                // 3. Возвращаем кнопку в исходное состояние
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = originalBtnContent;
                 loginBtn.classList.remove('opacity-75');
@@ -190,16 +214,13 @@
 
         // --- ЗАГРУЗКА ДАННЫХ ПРИЛОЖЕНИЯ ---
         async function showApp() {
-            // Прячем логин, показываем приложение
             loginOverlay.style.opacity = '0';
             setTimeout(() => {
                 loginOverlay.style.display = 'none';
                 app.classList.remove('hidden');
-                // Небольшая задержка для плавности
                 setTimeout(() => app.classList.remove('opacity-0'), 50);
             }, 300);
 
-            // Загружаем данные профиля
             loadProfile();
         }
 
@@ -209,18 +230,21 @@
                 if(!token) return;
 
                 const response = await axios.get(`${PROXY}${API_URL}/baseInfo`, {
-                    headers: { 'x-access-token': token }
+                    headers: { 
+                        'x-access-token': token,
+                        'Accept': 'application/json'
+                    }
                 });
                 
                 const user = response.data;
                 document.getElementById('header-name').textContent = user.name || "Пользователь";
                 document.getElementById('balance-display').textContent = (user.balance || 0).toLocaleString() + ' ₽';
-                document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${user.name}&background=random`;
+                document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${user.name || 'User'}&background=random`;
 
             } catch (error) {
                 console.error("Ошибка загрузки профиля", error);
                 if(error.response && error.response.status === 401) {
-                    logout(); // Токен протух
+                    logout();
                 }
             }
         }
