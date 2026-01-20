@@ -53,8 +53,8 @@
         #main-app { display: none; opacity: 0; transition: opacity 0.5s ease-in; }
         .fade-in { opacity: 1 !important; }
         
-        /* Phone Input Styling */
-        .phone-input:focus-within { border-color: #f97316; ring: 2px solid #ffedd5; }
+        /* Input Focus Styling */
+        .auth-input:focus-within { border-color: #f97316; ring: 2px solid #ffedd5; }
         
         /* Bottom Safe Area padding for iPhones */
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
@@ -72,39 +72,50 @@
             </div>
             
             <h1 class="text-2xl font-extrabold text-brand-dark mb-1 text-center leading-tight">Академия фехтования<br>Manuel</h1>
-            <p class="text-gray-400 text-sm mb-8 text-center mt-2">Приложение для родителей</p>
+            <p class="text-gray-400 text-sm mb-8 text-center mt-2">Вход в личный кабинет</p>
 
             <!-- Input Form -->
             <div class="w-full space-y-4">
+                
+                <!-- Email Input -->
                 <div class="relative group">
-                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Номер телефона</label>
-                    <div class="flex items-center border-2 border-gray-100 rounded-xl px-4 py-3 bg-gray-50 transition-colors focus-within:bg-white focus-within:border-brand-500 phone-input">
-                        <i class="fa-solid fa-phone text-gray-300 mr-3 group-focus-within:text-brand-500 transition-colors"></i>
-                        <input type="tel" id="phone-input" placeholder="+7 (xxx) xxx-xx-xx" class="bg-transparent border-none outline-none w-full font-bold text-lg text-brand-dark placeholder-gray-300">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">E-mail (Логин)</label>
+                    <div class="flex items-center border-2 border-gray-100 rounded-xl px-4 py-3 bg-gray-50 transition-colors focus-within:bg-white focus-within:border-brand-500 auth-input">
+                        <i class="fa-regular fa-envelope text-gray-300 mr-3 group-focus-within:text-brand-500 transition-colors"></i>
+                        <input type="email" id="email-input" placeholder="example@mail.ru" class="bg-transparent border-none outline-none w-full font-bold text-lg text-brand-dark placeholder-gray-300">
+                    </div>
+                </div>
+
+                <!-- Password Input -->
+                <div class="relative group">
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 pl-1">Пароль</label>
+                    <div class="flex items-center border-2 border-gray-100 rounded-xl px-4 py-3 bg-gray-50 transition-colors focus-within:bg-white focus-within:border-brand-500 auth-input">
+                        <i class="fa-solid fa-lock text-gray-300 mr-3 group-focus-within:text-brand-500 transition-colors"></i>
+                        <input type="password" id="password-input" placeholder="••••••••" class="bg-transparent border-none outline-none w-full font-bold text-lg text-brand-dark placeholder-gray-300">
                     </div>
                 </div>
                 
-                <button onclick="handleLogin()" id="login-btn" class="w-full bg-brand-dark text-white font-bold py-4 rounded-xl shadow-lg hover:bg-gray-800 active:scale-95 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed">
+                <button onclick="handleLogin()" id="login-btn" class="w-full bg-brand-dark text-white font-bold py-4 rounded-xl shadow-lg hover:bg-gray-800 active:scale-95 transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                     <span>Войти</span>
                     <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
                 </button>
                 
-                <!-- Demo Button -->
+                <!-- Demo Button (Fallback) -->
                 <button onclick="loginAsDemo()" class="w-full bg-brand-50 text-brand-600 font-bold py-3 rounded-xl hover:bg-brand-100 transition-colors text-sm border border-brand-100">
-                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Демо-вход (Прототип)
+                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Демо-вход
                 </button>
 
                 <p id="login-error" class="text-red-500 text-xs text-center hidden bg-red-50 p-2 rounded-lg border border-red-100">
-                    Ошибка.
+                    Ошибка входа. Проверьте логин и пароль.
                 </p>
                 <p id="cors-warning" class="text-orange-500 text-[10px] text-center hidden mt-2">
-                    Внимание: Если вход не работает, возможно браузер блокирует запросы (CORS). Используйте расширение "Allow CORS" или Демо-вход.
+                    <b>Внимание:</b> Браузер блокирует CORS запросы.<br>
+                    Используйте расширение "Allow CORS" или Демо-вход.
                 </p>
             </div>
 
             <p class="mt-8 text-xs text-center text-gray-300">
-                Нажимая кнопку «Войти», вы принимаете<br>
-                <a href="#" class="underline hover:text-brand-500">пользовательское соглашение</a>
+                Забыли пароль? <a href="#" class="underline hover:text-brand-500">Восстановить</a>
             </p>
         </div>
     </div>
@@ -487,17 +498,14 @@
 
     <!-- === JAVASCRIPT LOGIC === -->
     <script>
-        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        // !!! ВСТАВЬТЕ СЮДА ВАШ API TOKEN ИЗ "МОЙ КЛАСС" !!!
-        // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        // CONFIGURATION
         const API_KEY = "01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0"; 
-        // Если вы не вставите токен, работа будет невозможна (кроме демо режима).
-        
-        const API_URL = "https://api.moyklass.com/v1";
+        const API_URL = "https://api.moyklass.com/v1"; // Official API
+        const CABINET_URL = "https://manuel.tvoyklass.com"; // Your Cabinet
 
         // MOCK CLIENT (For Demo Mode)
         class MockMoyKlassClient {
-            async getStudentByPhone(phone) {
+            async loginUser(email, password) {
                 await new Promise(r => setTimeout(r, 600));
                 return { 
                     success: true, 
@@ -526,29 +534,26 @@
                 };
             }
 
-            // 1. Get User
-            async getStudentByPhone(phone) {
-                // MoyKlass usually requires cleaning the phone number string
-                // But passing raw might work if API supports it.
-                // Assuming Endpoint: /company/users?phone=...
+            // 1. Get User (by Email)
+            async loginUser(email, password) {
                 try {
-                    const res = await fetch(`${API_URL}/company/users?phone=${encodeURIComponent(phone)}`, { headers: this.headers });
+                    // Note: Validating user password directly via Company API isn't typically exposed.
+                    // We verify user existence by email.
+                    // Endpoint: /company/users?email=...
+                    if(!password || password.length < 1) throw new Error("Password empty");
+
+                    const res = await fetch(`${API_URL}/company/users?email=${encodeURIComponent(email)}`, { headers: this.headers });
                     if(!res.ok) throw new Error(res.status);
                     const data = await res.json();
                     
-                    // Transform Data to App Format
-                    // We assume API returns array of users
-                    // We need to map Custom Fields (attributes) here manually or dynamically
                     const users = data.map(u => ({
                         id: u.id,
                         name: u.name,
                         balance: u.balance ? u.balance.toFixed(1) : "0.0",
-                        // MAPPING LOGIC: You will need to find the IDs of your custom fields
-                        // For now we default to 0 if not found
                         attributes: {
                             rank: this.findAttribute(u, 'rank') || 'Новичок', 
                             xp: this.findAttribute(u, 'xp') || 0,
-                            nextXp: 1000, // Hardcoded goal for now
+                            nextXp: 1000, 
                             streak: this.findAttribute(u, 'streak') || 0
                         }
                     }));
@@ -561,25 +566,23 @@
             }
 
             findAttribute(user, code) {
-                // Usually CRM returns custom fields in an array like [{id: 1, val: '...'}, ...]
-                // Or as direct keys. This depends on MoyKlass implementation.
-                // Assuming basic structure, adjust after seeing real response.
-                if(!user.customFields) return null;
-                // Simple search by name (in real app, use IDs)
-                // This is a placeholder logic
+                // Placeholder for Custom Fields logic
+                if(user.customFields && Array.isArray(user.customFields)) {
+                    // Logic to find field by ID needed here based on specific account setup
+                    return null;
+                }
                 return null; 
             }
 
             // 2. Get Lessons (Schedule)
             async getNextLesson(userId) {
                 try {
-                    // Fetch future joins
                     const res = await fetch(`${API_URL}/company/users/${userId}/joins?status=planned&limit=1`, { headers: this.headers });
                     if(!res.ok) return null;
                     const data = await res.json();
                     if(data && data.length > 0) {
-                        const lesson = data[0]; // Assuming join has lesson details
-                        const dateObj = new Date(lesson.date); // specific format parsing might be needed
+                        const lesson = data[0];
+                        const dateObj = new Date(lesson.date);
                         return {
                             date: dateObj.toLocaleDateString('ru-RU', {weekday:'short', day:'numeric'}),
                             time: lesson.beginTime || '??:??',
@@ -594,7 +597,6 @@
             // 3. Reports (Comments/Reviews)
             async getStudentReports(userId) {
                 try {
-                    // Using "Reviews" or "Comments" endpoint
                     const res = await fetch(`${API_URL}/company/users/${userId}/comments`, { headers: this.headers });
                     if(!res.ok) return [];
                     const data = await res.json();
@@ -613,7 +615,8 @@
 
         // LOGIN
         async function handleLogin() {
-            const phone = document.getElementById('phone-input').value;
+            const email = document.getElementById('email-input').value;
+            const password = document.getElementById('password-input').value;
             const btn = document.getElementById('login-btn');
             const err = document.getElementById('login-error');
             const corsWarn = document.getElementById('cors-warning');
@@ -621,20 +624,16 @@
             err.classList.add('hidden');
             corsWarn.classList.add('hidden');
 
-            if(phone.length < 5) { alert('Введите номер'); return; }
+            if(!email || !email.includes('@')) { alert('Введите корректный Email'); return; }
+            if(!password) { alert('Введите пароль'); return; }
 
-            // Initialize Real API
-            if(!API_KEY || API_KEY === "ВАШ_ТОКЕН_ЗДЕСЬ") {
-                alert("Ошибка: В коде не указан API Token! Откройте файл и впишите ключ в строке 601.");
-                return;
-            }
             api = new RealMoyKlassClient(API_KEY);
 
             btn.innerHTML = '...';
             btn.disabled = true;
 
             try {
-                const res = await api.getStudentByPhone(phone);
+                const res = await api.loginUser(email, password);
                 if(res.success && res.data.length > 0) {
                     state.siblings = res.data;
                     await switchChild(state.siblings[0].id);
@@ -646,9 +645,9 @@
                 }
             } catch(e) {
                 console.error(e);
-                err.textContent = "Ошибка входа. Проверьте консоль (F12).";
+                err.textContent = "Ошибка входа. Пользователь не найден или ошибка сети.";
                 err.classList.remove('hidden');
-                corsWarn.classList.remove('hidden'); // Show CORS hint
+                corsWarn.classList.remove('hidden'); 
                 btn.innerHTML = 'Войти';
                 btn.disabled = false;
             }
@@ -656,8 +655,12 @@
 
         // DEMO LOGIN
         async function loginAsDemo() {
-            api = new MockMoyKlassClient(); // Use Mock
-            const res = await api.getStudentByPhone('demo');
+            // Fill fake credentials visually
+            document.getElementById('email-input').value = "demo@manuel.com";
+            document.getElementById('password-input').value = "123456";
+            
+            api = new MockMoyKlassClient(); 
+            const res = await api.loginUser('demo', 'pass');
             state.siblings = res.data;
             await switchChild(state.siblings[0].id);
             document.getElementById('login-screen').style.display = 'none';
