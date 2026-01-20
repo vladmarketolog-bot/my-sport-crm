@@ -41,10 +41,10 @@
     <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300 overflow-y-auto">
         <div class="w-full max-w-sm flex flex-col items-center pt-10">
             <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
-                <i class="fa-solid fa-server text-blue-600 text-3xl"></i>
+                <i class="fa-solid fa-rocket text-blue-600 text-3xl"></i>
             </div>
-            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход (Прокси V2)</h2>
-            <p class="text-gray-400 mb-8 text-center text-sm px-4">Попытка соединения через защищенный туннель.</p>
+            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Личный прокси</h2>
+            <p class="text-gray-400 mb-8 text-center text-sm px-4">Вход через защищенный канал Cloudflare.</p>
             
             <form id="login-form" class="w-full space-y-4">
                 <div>
@@ -143,7 +143,11 @@
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
 
-        // Инициализация маски ввода телефона
+        // ВАШ ЛИЧНЫЙ ПРОКСИ
+        const OWN_PROXY = 'https://my-sport-crm.potapov-path.workers.dev'; 
+
+        // ==========================================
+
         const phoneInput = document.getElementById('login-phone');
         const mask = IMask(phoneInput, { mask: '+{7} (000) 000-00-00', lazy: false });
         
@@ -171,7 +175,14 @@
             e.preventDefault(); 
             debugContainer.classList.remove('hidden');
             debugLog.innerHTML = ''; 
-            log('Старт поиска (V2)...');
+            
+            if (!OWN_PROXY) {
+                log('ОШИБКА: Не указан OWN_PROXY в коде!', 'error');
+                alert('Пожалуйста, создайте Worker и вставьте ссылку в переменную OWN_PROXY в коде.');
+                return;
+            }
+
+            log('Старт поиска...');
             
             const rawPhone = mask.unmaskedValue; 
             if (rawPhone.length < 10) {
@@ -193,13 +204,15 @@
                 let foundUser = null;
 
                 for (let phone of formats) {
-                    log(`Ищем: ${phone}`);
+                    log(`Запрос пользователя: ${phone}`);
                     try {
                         const users = await apiCall(`/users?phone=${phone}`);
                         if (users && users.length > 0) {
                             foundUser = users[0];
-                            log(`ID найден: ${foundUser.id}`, 'success');
+                            log(`Успех! ID: ${foundUser.id}`, 'success');
                             break;
+                        } else {
+                            log(`Пользователь не найден`, 'error');
                         }
                     } catch (err) {
                         log(`Ошибка: ${err.message}`, 'error');
@@ -212,7 +225,6 @@
                     startApp(false);
                 } else {
                     tg.showPopup({message: 'Номер не найден в базе.'});
-                    log('Пользователь не найден', 'error');
                 }
 
             } catch (error) {
@@ -224,62 +236,43 @@
             }
         });
 
-        // --- API CALL V2 (URL Auth Strategy) ---
+        // --- API CALL ЧЕРЕЗ СВОЙ ПРОКСИ ---
         async function apiCall(endpoint) {
-            // СТРАТЕГИЯ: Добавляем токен прямо в URL, чтобы прокси его не вырезал
-            const separator = endpoint.includes('?') ? '&' : '?';
-            // ВАЖНО: Некоторые API принимают accessToken, некоторые x-access-token в URL
-            // Добавляем оба для надежности
-            const urlWithKey = `${API_BASE}${endpoint}${separator}x-access-token=${COMPANY_API_KEY}`;
+            // Формируем URL для нашего воркера
+            // Убираем слэш в конце прокси, если он есть
+            const cleanProxy = OWN_PROXY.replace(/\/$/, "");
+            const targetUrl = `${API_BASE}${endpoint}`;
+            const proxyUrl = `${cleanProxy}?url=${encodeURIComponent(targetUrl)}`;
             
-            // Список прокси. Thingproxy обычно надежнее Corsproxy для заголовков,
-            // но мы передаем ключ в URL, так что Corsproxy должен сработать.
-            const strategies = [
-                { url: `https://corsproxy.io/?${encodeURIComponent(urlWithKey)}`, name: 'CorsProxy' },
-                { url: `https://thingproxy.freeboard.io/fetch/${encodeURIComponent(urlWithKey)}`, name: 'ThingProxy' },
-                // AllOrigins требует распаковки, он запасной
-                { url: `https://api.allorigins.win/get?url=${encodeURIComponent(urlWithKey)}`, name: 'AllOrigins', unpack: true }
-            ];
-
-            for (const strategy of strategies) {
-                try {
-                    log(`Через ${strategy.name}...`);
-                    
-                    const response = await fetch(strategy.url, {
-                        method: 'GET',
-                        // Заголовки убираем, полагаемся на URL
-                        headers: { 'Accept': 'application/json' }
-                    });
-
-                    if (!response.ok) {
-                        if (response.status === 401) throw new Error('API ключ отклонен (401)');
-                        throw new Error(`HTTP ${response.status}`);
+            log(`Proxy req -> ${endpoint}`);
+            
+            try {
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'x-access-token': COMPANY_API_KEY, 
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
                     }
+                });
 
-                    const text = await response.text();
-                    let data;
-
-                    if (strategy.unpack) {
-                        const wrapper = JSON.parse(text);
-                        data = JSON.parse(wrapper.contents);
-                    } else {
-                        data = JSON.parse(text);
-                    }
-
-                    // Проверка на ошибку API внутри успешного ответа HTTP
-                    if (data.code || (data.message && !Array.isArray(data) && !data.id)) {
-                        log(`API Error: ${JSON.stringify(data)}`, 'error');
-                        continue;
-                    }
-
-                    return data; // УСПЕХ
-
-                } catch (e) {
-                    log(`${strategy.name}: ${e.message}`, 'error');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
+
+                const data = await response.json();
+                
+                // Проверка на ошибку API внутри
+                if (data.code || (data.message && !Array.isArray(data) && !data.id)) {
+                    log(`API Error: ${JSON.stringify(data)}`, 'error');
+                    throw new Error('API Error');
+                }
+
+                return data; // УСПЕХ
+
+            } catch (e) {
+                throw e;
             }
-            
-            throw new Error('Все шлюзы заблокированы.');
         }
 
         // --- APP START ---
