@@ -63,7 +63,7 @@
             
             <!-- Browser Mode Indicator -->
             <div id="browser-indicator" class="hidden mt-4 text-xs text-orange-500 font-bold bg-orange-50 px-3 py-1 rounded-full">
-                <i class="fa-solid fa-earth-americas"></i> Режим браузера (без Telegram)
+                <i class="fa-solid fa-earth-americas"></i> Режим браузера
             </div>
 
             <!-- Debug Log Area -->
@@ -137,38 +137,48 @@
     </div>
 
     <script>
-        // Инициализация Telegram WebApp
-        let tg = window.Telegram.WebApp;
-        
-        // --- ПРОВЕРКА ОКРУЖЕНИЯ (Браузер или Telegram) ---
-        // Если platform == unknown, скорее всего мы в браузере
-        const isBrowser = !tg.initDataUnsafe || Object.keys(tg.initDataUnsafe).length === 0;
+        // --- БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ TELEGRAM ---
+        let tg = {
+            ready: () => {},
+            expand: () => {},
+            showPopup: (params) => alert(params.message || params.title),
+            HapticFeedback: {
+                notificationOccurred: () => {},
+                impactOccurred: () => {}
+            }
+        };
 
-        if (isBrowser) {
-            console.log("Запущено в браузере. Эмуляция Telegram...");
-            document.getElementById('browser-indicator').classList.remove('hidden');
-            
-            // Подменяем методы Telegram, чтобы они работали в браузере
-            tg = {
-                ready: () => console.log('TG Ready (Mock)'),
-                expand: () => console.log('TG Expand (Mock)'),
-                showPopup: (params) => alert(params.message || params.title), // Замена попапа на alert
-                HapticFeedback: {
-                    notificationOccurred: () => console.log('Vibrate (Mock)'),
-                    impactOccurred: () => console.log('Impact (Mock)')
-                }
-            };
-        } else {
-            tg.ready();
-            tg.expand();
+        try {
+            if (window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+            } else {
+                console.log('Telegram WebApp not found, using fallback.');
+                document.getElementById('browser-indicator').classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error('TG Init error:', e);
+        }
+
+        // Безопасная функция для вызова методов TG
+        function safeTgAction(action) {
+            try {
+                if (tg && typeof action === 'function') action(tg);
+            } catch (e) {
+                console.warn('TG Action Failed:', e);
+            }
         }
 
         // ==========================================
         // НАСТРОЙКИ
         // ==========================================
         
-        // ВАШ GOOGLE СКРИПТ
-        const GOOGLE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxvfj64g5EmcSwsLA6UVXg7pkSMLC3-7MQB20Yk0_7btzMhmyNyaQ8GnZ7H0S_gtx8N/exec'; 
+        // ВАШ GOOGLE СКРИПТ (Обновлено!)
+        const GOOGLE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbxPinLf4XFcgk9KLf1kOOOEiTueo9YxVAsCyIyZz43wuzATMFDUXu8jOfPVsrQr9DiSoA/exec'; 
+        
+        // ВАШ НОВЫЙ КЛЮЧ
+        const COMPANY_API_KEY = '01q9ZAKA0ARYnn0ctnnl2LrcQMuYTTvnzTUFtJZF6bQwKLsvMvI6'; 
 
         // ==========================================
 
@@ -210,7 +220,7 @@
             const rawPhone = mask.unmaskedValue; 
             
             if (rawPhone.length < 10) {
-                tg.showPopup({message: 'Введите полный номер'});
+                safeTgAction(t => t.showPopup({message: 'Введите полный номер'}));
                 return;
             }
 
@@ -246,10 +256,10 @@
 
                 if (foundUser) {
                     localStorage.setItem('mk_user_id', foundUser.id);
-                    tg.HapticFeedback.notificationOccurred('success');
+                    safeTgAction(t => t.HapticFeedback.notificationOccurred('success'));
                     startApp(false);
                 } else {
-                    tg.showPopup({message: 'Пользователь не найден'});
+                    safeTgAction(t => t.showPopup({message: 'Пользователь не найден. Проверьте номер.'}));
                     log('Ничего не найдено.', 'error');
                 }
 
@@ -263,9 +273,9 @@
 
         // --- API CALL ЧЕРЕЗ GOOGLE ---
         async function apiCall(endpoint, params = {}) {
-            // Формируем URL для Google Script
             const url = new URL(GOOGLE_PROXY_URL);
             url.searchParams.append("path", endpoint);
+            url.searchParams.append("key", COMPANY_API_KEY); // ПЕРЕДАЕМ КЛЮЧ
             
             for (const key in params) {
                 url.searchParams.append(key, params[key]);
@@ -284,9 +294,8 @@
 
                 const text = await response.text();
                 
-                // Проверка на HTML (ошибка прав доступа)
                 if (text.trim().startsWith('<')) {
-                    log('Google вернул HTML. Установите "Anyone" в настройках деплоя.', 'error');
+                    log('Google вернул HTML. Проверьте Deploy > Web App > Anyone', 'error');
                     throw new Error('Google Permissions Error');
                 }
 
@@ -300,6 +309,10 @@
                 
                 // Проверка ошибок внутри JSON
                 if (data.error) throw new Error(data.error);
+                if (data.code === 'Unauthorized') {
+                    log('CRM: Ключ отклонен. Проверьте, обновили ли вы скрипт.', 'error');
+                    throw new Error('Invalid API Key');
+                }
                 if (data.code) throw new Error(`CRM Error: ${data.message}`);
 
                 return data; // УСПЕХ
