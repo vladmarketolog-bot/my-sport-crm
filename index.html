@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Input Mask for Phone -->
+    <script src="https://unpkg.com/imask"></script>
     
     <script>
         tailwind.config = {
@@ -22,51 +24,38 @@
     <style>
         body { -webkit-tap-highlight-color: transparent; background-color: #f3f4f6; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        /* Эффект нажатия */
         .btn-press:active { transform: scale(0.95); opacity: 0.8; }
-        /* Анимация появления */
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
-    <!-- === LOGIN SCREEN === -->
+    <!-- === LOGIN SCREEN (PHONE ONLY) === -->
     <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300">
         <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
-            <i class="fa-solid fa-shield-halved text-blue-600 text-3xl"></i>
+            <i class="fa-solid fa-mobile-screen-button text-blue-600 text-3xl"></i>
         </div>
-        <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход в Кабинет</h2>
-        <p class="text-gray-400 mb-6 text-center text-sm px-4">Вход только для <b>родителей и учеников</b>.<br>Логин администратора здесь не сработает.</p>
+        <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход по номеру</h2>
+        <p class="text-gray-400 mb-8 text-center text-sm px-4">Введите номер телефона, который вы указывали при регистрации в клубе.</p>
         
         <form id="login-form" class="w-full max-w-sm space-y-4">
             <div>
-                <!-- Pre-filled for convenience as requested -->
-                <input type="email" id="login-email" value="potapov.path@gmail.com" placeholder="Email ученика" 
-                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" required>
-            </div>
-            <div>
-                <!-- Pre-filled for convenience as requested -->
-                <input type="password" id="login-pass" value="XxcZm8" placeholder="Пароль" 
-                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" required>
+                <input type="tel" id="login-phone" placeholder="+7 (900) 000-00-00" 
+                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-lg text-center tracking-wider" required>
             </div>
             
             <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
-                <span>Войти через CRM</span>
+                <span>Найти меня</span>
             </button>
         </form>
 
-        <div class="relative w-full max-w-sm my-6">
-            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
-            <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-400">или</span></div>
-        </div>
-
-        <button onclick="enableDemoMode()" class="w-full max-w-sm bg-gray-100 text-gray-600 py-3 rounded-2xl font-semibold text-sm hover:bg-gray-200 transition">
-            👀 Посмотреть Демо-версию
+        <button onclick="enableDemoMode()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
+            Посмотреть Демо-версию
         </button>
         
         <!-- Error Debug Area -->
-        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100 font-mono"></div>
+        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100"></div>
     </div>
 
     <!-- === MAIN APP === -->
@@ -87,9 +76,8 @@
         <!-- Content -->
         <div class="p-5 space-y-6 fade-in">
             
-            <!-- Demo Badge -->
             <div id="demo-badge" class="hidden bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-2 rounded-lg text-center mb-2">
-                <i class="fa-solid fa-circle-info mr-1"></i> Режим ДЕМО (Данные не из CRM)
+                <i class="fa-solid fa-circle-info mr-1"></i> ДЕМО РЕЖИМ
             </div>
 
             <!-- Balance Card -->
@@ -98,14 +86,14 @@
                     <p class="text-blue-200 text-sm font-medium mb-1">Баланс счета</p>
                     <h2 class="text-4xl font-bold mb-4" id="balance-display">--</h2>
                     <div class="bg-white/20 backdrop-blur-md inline-block px-3 py-1 rounded-lg text-xs font-bold">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Активен
+                        <i class="fa-solid fa-check-circle mr-1"></i> Статус активен
                     </div>
                 </div>
                 <i class="fa-solid fa-wallet absolute -bottom-6 -right-6 text-9xl opacity-10"></i>
             </div>
 
             <!-- Schedule Button -->
-            <button onclick="tg.showPopup({message:'Открываем расписание...'})" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
+            <button onclick="tg.showPopup({message:'Расписание загружается...'})" class="w-full bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group active:scale-95 transition-transform">
                 <div class="flex items-center gap-4">
                     <div class="w-12 h-12 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xl group-hover:bg-orange-500 group-hover:text-white transition-colors">
                         <i class="fa-solid fa-calendar-day"></i>
@@ -117,16 +105,16 @@
                 </div>
                 <i class="fa-solid fa-chevron-right text-gray-300"></i>
             </button>
-
-            <!-- Quick Actions -->
+            
+            <!-- Stats -->
             <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center h-28">
-                    <i class="fa-solid fa-clock-rotate-left text-2xl text-purple-500 mb-2"></i>
-                    <span class="text-xs font-bold">История</span>
+                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center">
+                    <span class="text-2xl font-bold text-brand-600" id="stat-visited">0</span>
+                    <span class="text-xs text-gray-400">Посещений</span>
                 </div>
-                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center h-28">
-                    <i class="fa-solid fa-store text-2xl text-green-500 mb-2"></i>
-                    <span class="text-xs font-bold">Магазин</span>
+                <div class="bg-white p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center text-center">
+                    <span class="text-2xl font-bold text-green-500" id="stat-class">Group</span>
+                    <span class="text-xs text-gray-400">Класс</span>
                 </div>
             </div>
         </div>
@@ -137,135 +125,145 @@
         tg.ready();
         tg.expand();
 
-        // КОНФИГУРАЦИЯ API
-        const API_URL = 'https://api.moyklass.com/v1/user';
+        // ==========================================
+        // НАСТРОЙКИ (Ключ вставлен)
+        // ==========================================
         
-        // СПИСОК ПРОКСИ (Обновленный порядок для надежности)
-        // 1. corsproxy.io - обычно самый быстрый
-        // 2. allorigins - хороший запасной
+        const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
+        
+        // Список прокси для надежности
         const PROXIES = [
             'https://corsproxy.io/?',
             'https://api.allorigins.win/raw?url='
         ];
         
-        let isDemo = false;
+        const API_BASE = 'https://api.moyklass.com/v1/company'; 
 
+        // Инициализация маски ввода телефона (+7 ...)
+        const phoneInput = document.getElementById('login-phone');
+        const maskOptions = { 
+            mask: '+{7} (000) 000-00-00',
+            lazy: false 
+        };
+        const mask = IMask(phoneInput, maskOptions);
+
+        let isDemo = false;
+        
         const loginOverlay = document.getElementById('login-overlay');
         const app = document.getElementById('app');
         const errorBox = document.getElementById('error-box');
         const loginBtn = document.getElementById('login-btn');
 
         // Проверка сохраненного входа
-        const savedToken = localStorage.getItem('mk_token');
+        const savedUserId = localStorage.getItem('mk_user_id');
         const savedDemo = localStorage.getItem('is_demo');
 
-        if(savedToken) {
+        if (savedUserId) {
             startApp(false);
         } else if (savedDemo === 'true') {
             enableDemoMode();
         }
 
-        // --- ЛОГИКА ВХОДА С АВТО-ПЕРЕКЛЮЧЕНИЕМ ПРОКСИ ---
+        // --- ЛОГИКА ВХОДА ПО ТЕЛЕФОНУ ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault(); 
             errorBox.classList.add('hidden');
             
-            const originalText = loginBtn.innerText;
-            loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Подключение...';
+            // Получаем чистый номер (unmaskedValue)
+            // IMask вернет только цифры. Например: 79001234567
+            const rawPhone = mask.unmaskedValue; 
             
-            const email = document.getElementById('login-email').value.trim();
-            const password = document.getElementById('login-pass').value.trim();
-
-            let lastError = null;
-
-            // Пробуем каждый прокси по очереди
-            for (let i = 0; i < PROXIES.length; i++) {
-                const proxyUrl = PROXIES[i];
-                try {
-                    console.log(`Пробуем прокси ${i+1}: ${proxyUrl}`);
-                    
-                    const targetUrl = `${API_URL}/auth/login`;
-                    // Добавляем timestamp для обхода кэша
-                    const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}?t=${Date.now()}`; 
-
-                    const response = await fetch(fullUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ email, password })
-                    });
-
-                    // Пытаемся читать ответ как текст сначала, чтобы не упасть на JSON.parse
-                    const textData = await response.text();
-                    let data = {};
-                    
-                    try {
-                        data = JSON.parse(textData);
-                    } catch (e) {
-                        console.warn('Ответ не JSON:', textData.substring(0, 100));
-                        throw new Error(`Прокси вернул невалидные данные (${response.status})`);
-                    }
-
-                    console.log('Ответ API:', data);
-
-                    // Если успех (200 OK и есть токен)
-                    if (response.ok && data.accessToken) {
-                        localStorage.setItem('mk_token', data.accessToken);
-                        localStorage.removeItem('is_demo');
-                        
-                        // Сохраняем рабочий прокси
-                        localStorage.setItem('working_proxy', proxyUrl);
-                        
-                        tg.HapticFeedback.notificationOccurred('success');
-                        startApp(false);
-                        return; // УСПЕХ!
-                    }
-
-                    // Обработка ошибок от API (400, 401) - это НЕ ошибки сети, а ошибки данных
-                    if (response.status === 400 || response.status === 401) {
-                        let msg = 'Неверный логин или пароль.';
-                        if (data.message) msg += ` (${data.message})`;
-                        // Это финальная ошибка, нет смысла менять прокси
-                        throw new Error("AUTH_ERROR: " + msg); 
-                    }
-
-                    // Если дошли сюда - значит другая ошибка
-                    throw new Error(`Статус API: ${response.status}`);
-
-                } catch (error) {
-                    console.error(`Ошибка с прокси ${proxyUrl}:`, error);
-                    lastError = error;
-                    
-                    // Если это ошибка авторизации, сразу показываем её и останавливаемся
-                    if (error.message.includes('AUTH_ERROR') || error.message.includes('Неверный')) {
-                        errorBox.innerText = error.message.replace("AUTH_ERROR: ", "");
-                        errorBox.classList.remove('hidden');
-                        tg.HapticFeedback.notificationOccurred('error');
-                        loginBtn.disabled = false;
-                        loginBtn.innerText = originalText;
-                        return;
-                    }
-                }
+            if (rawPhone.length < 10) {
+                tg.showPopup({message: 'Пожалуйста, введите полный номер телефона'});
+                return;
             }
 
-            // Если все прокси не сработали
-            errorBox.innerText = `Не удалось подключиться. Последняя ошибка: ${lastError ? lastError.message : 'Unknown'}`;
-            errorBox.classList.remove('hidden');
-            tg.HapticFeedback.notificationOccurred('error');
-            
-            loginBtn.disabled = false;
-            loginBtn.innerText = originalText;
+            const originalText = loginBtn.innerText;
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Поиск...';
+
+            try {
+                // CRM может хранить номер в разных форматах (8900..., 7900..., +7900...).
+                // Попробуем поискать по rawPhone (обычно это 79...)
+                
+                console.log("Searching user by phone:", rawPhone);
+                const users = await apiCall(`/users?phone=${rawPhone}`); 
+
+                console.log('Найденные пользователи:', users);
+
+                if (users && users.length > 0) {
+                    // Берем первого найденного
+                    const user = users[0];
+                    
+                    // Сохраняем ID
+                    localStorage.setItem('mk_user_id', user.id);
+                    localStorage.removeItem('is_demo');
+                    
+                    tg.HapticFeedback.notificationOccurred('success');
+                    startApp(false);
+                } else {
+                    // Если не нашли с 7..., попробуем обрезать первую цифру и поискать
+                    // (иногда ищут по маске %900...)
+                    // Но для простоты пока оставим строгий поиск.
+                    throw new Error('Ученик с таким номером не найден. Проверьте правильность ввода.');
+                }
+
+            } catch (error) {
+                console.error(error);
+                tg.HapticFeedback.notificationOccurred('error');
+                
+                let msg = error.message;
+                if(msg.includes('Failed to fetch')) msg = 'Ошибка сети. Попробуйте еще раз.';
+                
+                errorBox.innerText = msg;
+                errorBox.classList.remove('hidden');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerText = originalText;
+            }
         });
 
-        // --- ЛОГИКА ДЕМО РЕЖИМА ---
-        function enableDemoMode() {
-            isDemo = true;
-            localStorage.setItem('is_demo', 'true');
-            document.getElementById('demo-badge').classList.remove('hidden');
-            startApp(true);
+        // --- ФУНКЦИЯ ЗАПРОСА К API (АВТО-ПРОКСИ) ---
+        async function apiCall(endpoint) {
+            for (const proxyUrl of PROXIES) {
+                try {
+                    const targetUrl = `${API_BASE}${endpoint}`;
+                    // Кодируем URL
+                    const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
+                    
+                    console.log(`Trying proxy: ${proxyUrl}`);
+                    
+                    const response = await fetch(fullUrl, {
+                        method: 'GET',
+                        headers: {
+                            'x-access-token': COMPANY_API_KEY, 
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    // Читаем текст, потом парсим, чтобы отловить ошибки прокси
+                    const text = await response.text();
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch(e) {
+                        console.warn("Proxy returned non-JSON:", text.substring(0, 50));
+                        continue; // Попробуем следующий прокси
+                    }
+
+                    if (response.ok) {
+                        return data;
+                    }
+                    
+                    if (response.status === 401) {
+                         throw new Error('Ошибка ключа API (401)');
+                    }
+                } catch (e) {
+                    console.warn(`Proxy failed`, e);
+                    if (e.message.includes('API')) throw e;
+                }
+            }
+            throw new Error('Не удалось соединиться с сервером CRM.');
         }
 
         // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
@@ -278,7 +276,12 @@
             }, 300);
 
             if (demoMode) {
-                setUserData("Иван Петров", 5, 2400, "Завтра, 18:00");
+                updateUI({
+                    name: "Иван Петров (Демо)",
+                    balance: 5000,
+                    stats: { visited: 12, className: "PRO" },
+                    nextLesson: "Завтра в 19:00"
+                });
             } else {
                 await loadRealData();
             }
@@ -286,45 +289,94 @@
 
         async function loadRealData() {
             try {
-                const token = localStorage.getItem('mk_token');
-                // Используем сохраненный работающий прокси
-                const savedProxy = localStorage.getItem('working_proxy') || PROXIES[0];
+                const userId = localStorage.getItem('mk_user_id');
+                if (!userId) { logout(); return; }
+
+                // 1. Получаем данные ученика
+                const user = await apiCall(`/users/${userId}`);
                 
-                const targetUrl = `${API_URL}/baseInfo`;
-                const fullUrl = `${savedProxy}${encodeURIComponent(targetUrl)}?t=${Date.now()}`;
+                // 2. Получаем Записи на уроки (чтобы узнать следующий)
+                // Для этого нужен join (records).
+                // API endpoint: /lessons?userIds={id} (некоторые версии) или /lessonRecords?userId={id}
                 
-                const response = await fetch(fullUrl, {
-                    method: 'GET',
-                    headers: { 
-                        'x-access-token': token,
-                        'Accept': 'application/json'
-                    }
+                // Обновляем базовый UI
+                updateUI({
+                    name: user.name,
+                    balance: user.balance || 0,
+                    stats: { 
+                        visited: user.visitedCount || 0, 
+                        className: (user.statusId ? 'Активен' : 'Новичок') 
+                    },
+                    nextLesson: "Загрузка..."
                 });
                 
-                if(!response.ok) {
-                    if(response.status === 401) logout();
-                    throw new Error('Не удалось загрузить профиль');
-                }
-
-                const user = await response.json();
-                setUserData(user.name, user.balance || 0, (user.balance || 0) * 500, "Загрузка..."); 
-                document.getElementById('next-lesson-info').innerText = "Данные получены";
+                // Дозагрузка расписания
+                loadNextLesson(userId);
 
             } catch (e) {
                 console.error(e);
-                document.getElementById('next-lesson-info').innerText = "Нет связи";
+                document.getElementById('header-name').innerText = "Ошибка загрузки";
             }
         }
 
-        function setUserData(name, lessons, money, nextLesson) {
-            document.getElementById('header-name').innerText = name || 'Спортсмен';
-            document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${name}&background=random`;
-            document.getElementById('balance-display').innerText = `${money} ₽`;
-            if(nextLesson) document.getElementById('next-lesson-info').innerText = nextLesson;
+        async function loadNextLesson(userId) {
+            try {
+                // Ищем уроки пользователя на неделю вперед
+                const today = new Date();
+                const nextWeek = new Date();
+                nextWeek.setDate(today.getDate() + 14); // 2 недели
+                
+                const dateFrom = today.toISOString().split('T')[0];
+                const dateTo = nextWeek.toISOString().split('T')[0];
+
+                // В Company API уроки конкретного юзера ищутся через фильтр
+                // (зависит от версии API, пробуем стандартный)
+                const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
+                
+                if (lessons && lessons.length > 0) {
+                     // Фильтруем прошедшие по времени сегодня
+                     const now = new Date();
+                     const futureLessons = lessons.filter(l => {
+                         const lDate = new Date(`${l.date}T${l.beginTime}`);
+                         return lDate > now;
+                     });
+
+                     if (futureLessons.length > 0) {
+                        const next = futureLessons[0];
+                        // Форматируем дату
+                        const dateObj = new Date(next.date);
+                        const day = dateObj.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+                        document.getElementById('next-lesson-info').innerText = `${day}, ${next.beginTime}`;
+                     } else {
+                        document.getElementById('next-lesson-info').innerText = "Нет будущих записей";
+                     }
+                } else {
+                     document.getElementById('next-lesson-info').innerText = "Нет записей";
+                }
+            } catch (e) {
+                console.error("Lesson load error", e);
+                document.getElementById('next-lesson-info').innerText = "--";
+            }
+        }
+
+        function updateUI(data) {
+            document.getElementById('header-name').innerText = data.name;
+            document.getElementById('header-avatar').src = `https://ui-avatars.com/api/?name=${data.name}&background=random`;
+            document.getElementById('balance-display').innerText = `${data.balance} ₽`;
+            document.getElementById('stat-visited').innerText = data.stats.visited;
+            document.getElementById('stat-class').innerText = data.stats.className;
+            if(data.nextLesson) document.getElementById('next-lesson-info').innerText = data.nextLesson;
+        }
+
+        function enableDemoMode() {
+            isDemo = true;
+            localStorage.setItem('is_demo', 'true');
+            document.getElementById('demo-badge').classList.remove('hidden');
+            startApp(true);
         }
 
         function logout() {
-            if(confirm('Выйти?')) {
+            if(confirm('Выйти из аккаунта?')) {
                 localStorage.clear();
                 location.reload();
             }
