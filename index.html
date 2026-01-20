@@ -143,13 +143,12 @@
         
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
         
-        // Список прокси.
-        // corsproxy.io требует формат https://corsproxy.io/?url...
-        // codetabs прост и надежен для JSON
+        // ОБНОВЛЕННЫЙ СПИСОК ПРОКСИ С ALLORIGINS
         const PROXIES = [
+            // AllOrigins заворачивает ответ в JSON {contents: "..."}, это мы обработаем в коде
+            'https://api.allorigins.win/get?url=',
             'https://corsproxy.io/?',
-            'https://api.codetabs.com/v1/proxy?quest=',
-            'https://thingproxy.freeboard.io/fetch/'
+            'https://api.codetabs.com/v1/proxy?quest='
         ];
         
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
@@ -198,7 +197,7 @@
             debugLog.innerHTML = ''; 
             log('Начало поиска пользователя...');
             
-            const rawPhone = mask.unmaskedValue; // Получаем только цифры (напр. 79991234567)
+            const rawPhone = mask.unmaskedValue; 
             
             if (rawPhone.length < 10) {
                 log('Ошибка: Номер слишком короткий', 'error');
@@ -212,11 +211,10 @@
 
             try {
                 // Поиск по нескольким форматам
-                // API МойКласс может хранить как 7..., так и 8...
                 let formatsToCheck = [rawPhone];
                 if (rawPhone.startsWith('7')) {
                     formatsToCheck.push('8' + rawPhone.substring(1));
-                    formatsToCheck.push(rawPhone.substring(1)); // Без кода страны (рискованно, но бывает)
+                    formatsToCheck.push(rawPhone.substring(1)); 
                 }
                 
                 let foundUser = null;
@@ -230,10 +228,10 @@
                             log(`Нашел пользователя: ${foundUser.name}`, 'success');
                             break;
                         } else {
-                            log(`Пустой результат для ${phone}`);
+                            log(`Нет результата для ${phone}`);
                         }
                     } catch (err) {
-                        log(`Ошибка поиска ${phone}: ${err.message}`, 'error');
+                        log(`Ошибка запроса (${phone}): ${err.message}`, 'error');
                     }
                 }
 
@@ -247,7 +245,7 @@
                 }
 
             } catch (error) {
-                log(`ФАТАЛЬНАЯ ОШИБКА: ${error.message}`, 'error');
+                log(`ФАТАЛЬНО: ${error.message}`, 'error');
                 tg.HapticFeedback.notificationOccurred('error');
             } finally {
                 loginBtn.disabled = false;
@@ -255,62 +253,88 @@
             }
         });
 
-        // --- ФУНКЦИЯ ЗАПРОСА К API (АГРЕССИВНЫЙ ПРОКСИ) ---
+        // --- ФУНКЦИЯ ЗАПРОСА К API (УЛУЧШЕННАЯ ОБРАБОТКА ПРОКСИ) ---
         async function apiCall(endpoint) {
             let lastError = null;
 
             for (const proxyUrl of PROXIES) {
                 try {
                     const targetUrl = `${API_BASE}${endpoint}`;
-                    // Кодируем URL
+                    // AllOrigins требует закодированный URL
                     const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
                     
                     log(`Прокси: ${new URL(proxyUrl).hostname}...`);
                     
-                    // Попытка 1: С заголовками
                     const response = await fetch(fullUrl, {
                         method: 'GET',
+                        // Важно: allorigins не передает заголовки в бесплатной версии корректно,
+                        // поэтому для него мы рассчитываем на то, что CRM может не требовать Auth для простых GET (редко),
+                        // ЛИБО мы используем другие прокси.
+                        // Но если мы используем corsproxy.io, заголовки нужны.
                         headers: {
                             'x-access-token': COMPANY_API_KEY, 
                             'Accept': 'application/json'
                         }
                     });
 
+                    if (!response.ok) {
+                        log(`HTTP Error ${response.status}`, 'error');
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
                     // Читаем текст ответа
                     const text = await response.text();
-                    
-                    // Пытаемся парсить JSON
                     let data;
-                    try {
-                        data = JSON.parse(text);
-                    } catch(e) {
-                        // Если это codetabs, иногда он возвращает contents
-                        if (text.includes('"contents":')) {
-                             // Обработка специфики some proxies
+
+                    // СПЕЦИАЛЬНАЯ ОБРАБОТКА ALLORIGINS
+                    // Он возвращает JSON вида { contents: "РЕАЛЬНЫЙ_ОТВЕТ_В_СТРОКЕ", status: ... }
+                    if (proxyUrl.includes('allorigins')) {
+                        try {
+                            const wrapper = JSON.parse(text);
+                            if (wrapper.contents) {
+                                // Пытаемся распарсить внутренний контент
+                                // Иногда это строка, иногда уже объект (редко)
+                                if (typeof wrapper.contents === 'string') {
+                                    data = JSON.parse(wrapper.contents);
+                                } else {
+                                    data = wrapper.contents;
+                                }
+                            } else {
+                                throw new Error('Allorigins: empty contents');
+                            }
+                        } catch (parseErr) {
+                            log('Ошибка парсинга ответа Allorigins', 'error');
+                            throw parseErr;
                         }
-                        log(`Прокси ${proxyUrl} вернул не JSON: ${text.substring(0,20)}...`, 'error');
-                        continue; 
+                    } 
+                    // ОБЫЧНАЯ ОБРАБОТКА (CorsProxy и др)
+                    else {
+                        try {
+                            data = JSON.parse(text);
+                        } catch(e) {
+                            log(`Невалидный JSON от прокси`, 'error');
+                            continue; 
+                        }
                     }
 
-                    // Проверка статуса MoyKlass (иногда прокси возвращает 200, но внутри ошибка API)
-                    if (data && (data.code || (data.message && !Array.isArray(data) && !data.id))) {
-                         // Похоже на ошибку
+                    // Проверка на ошибки внутри API ответа
+                    if (data && (data.code || (data.message && !data.id && !Array.isArray(data)))) {
                          log(`API Error: ${JSON.stringify(data)}`, 'error');
+                         // Если 401 - значит ключ не подходит
+                         if (data.code === 401 || JSON.stringify(data).includes('401')) {
+                             throw new Error('401 Unauthorized (Check API Key)');
+                         }
                     }
 
-                    if (response.ok) {
-                        return data;
-                    }
-                    
-                    log(`HTTP ${response.status}`, 'error');
+                    return data;
 
                 } catch (e) {
-                    log(`Сбой сети: ${e.message}`, 'error');
+                    log(`Сбой: ${e.message}`, 'error');
                     lastError = e;
                 }
             }
             
-            throw new Error(`Все шлюзы недоступны. ${lastError ? lastError.message : ''}`);
+            throw new Error(`Связь отсутствует. Проверьте интернет или VPN.`);
         }
 
         // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
@@ -371,9 +395,6 @@
                 const dateFrom = today.toISOString().split('T')[0];
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                // Некоторые версии API требуют userIds[]=123
-                // Другие userId=123
-                // Пробуем массив
                 const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
                 
                 if (lessons && lessons.length > 0) {
