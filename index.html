@@ -41,11 +41,13 @@
         
         <form id="login-form" class="w-full max-w-sm space-y-4">
             <div>
-                <input type="email" id="login-email" placeholder="Email ученика" 
+                <!-- Pre-filled for convenience as requested -->
+                <input type="email" id="login-email" value="potapov.path@gmail.com" placeholder="Email ученика" 
                     class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" required>
             </div>
             <div>
-                <input type="password" id="login-pass" placeholder="Пароль" 
+                <!-- Pre-filled for convenience as requested -->
+                <input type="password" id="login-pass" value="XxcZm8" placeholder="Пароль" 
                     class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium" required>
             </div>
             
@@ -64,7 +66,7 @@
         </button>
         
         <!-- Error Debug Area -->
-        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100"></div>
+        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100 font-mono"></div>
     </div>
 
     <!-- === MAIN APP === -->
@@ -138,15 +140,15 @@
         // КОНФИГУРАЦИЯ API
         const API_URL = 'https://api.moyklass.com/v1/user';
         
-        // СПИСОК ПРОКСИ (Если один упал, пробуем следующий)
+        // СПИСОК ПРОКСИ (Обновленный порядок для надежности)
+        // 1. corsproxy.io - обычно самый быстрый
+        // 2. allorigins - хороший запасной
         const PROXIES = [
             'https://corsproxy.io/?',
-            'https://thingproxy.freeboard.io/fetch/',
             'https://api.allorigins.win/raw?url='
         ];
         
         let isDemo = false;
-        let currentProxyIndex = 0;
 
         const loginOverlay = document.getElementById('login-overlay');
         const app = document.getElementById('app');
@@ -178,12 +180,13 @@
             let lastError = null;
 
             // Пробуем каждый прокси по очереди
-            for (const proxyUrl of PROXIES) {
+            for (let i = 0; i < PROXIES.length; i++) {
+                const proxyUrl = PROXIES[i];
                 try {
-                    console.log(`Пробуем прокси: ${proxyUrl}`);
+                    console.log(`Пробуем прокси ${i+1}: ${proxyUrl}`);
                     
                     const targetUrl = `${API_URL}/auth/login`;
-                    // Кодируем URL для передачи в прокси
+                    // Добавляем timestamp для обхода кэша
                     const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}?t=${Date.now()}`; 
 
                     const response = await fetch(fullUrl, {
@@ -195,40 +198,50 @@
                         body: JSON.stringify({ email, password })
                     });
 
-                    // Читаем JSON
+                    // Пытаемся читать ответ как текст сначала, чтобы не упасть на JSON.parse
+                    const textData = await response.text();
                     let data = {};
-                    try { data = await response.json(); } catch(e) {}
+                    
+                    try {
+                        data = JSON.parse(textData);
+                    } catch (e) {
+                        console.warn('Ответ не JSON:', textData.substring(0, 100));
+                        throw new Error(`Прокси вернул невалидные данные (${response.status})`);
+                    }
+
+                    console.log('Ответ API:', data);
 
                     // Если успех (200 OK и есть токен)
                     if (response.ok && data.accessToken) {
                         localStorage.setItem('mk_token', data.accessToken);
                         localStorage.removeItem('is_demo');
-                        tg.HapticFeedback.notificationOccurred('success');
                         
-                        // Сохраняем работающий прокси для будущих запросов
+                        // Сохраняем рабочий прокси
                         localStorage.setItem('working_proxy', proxyUrl);
                         
+                        tg.HapticFeedback.notificationOccurred('success');
                         startApp(false);
-                        return; // Выходим из цикла и функции
+                        return; // УСПЕХ!
                     }
 
-                    // Обработка ошибок от API (400, 401)
+                    // Обработка ошибок от API (400, 401) - это НЕ ошибки сети, а ошибки данных
                     if (response.status === 400 || response.status === 401) {
                         let msg = 'Неверный логин или пароль.';
                         if (data.message) msg += ` (${data.message})`;
-                        throw new Error(msg); // Это не ошибка сети, прерываем перебор
+                        // Это финальная ошибка, нет смысла менять прокси
+                        throw new Error("AUTH_ERROR: " + msg); 
                     }
 
-                    // Если 500 или другая ошибка - выбрасываем, чтобы попробовать следующий прокси
-                    throw new Error(`Proxy status: ${response.status}`);
+                    // Если дошли сюда - значит другая ошибка
+                    throw new Error(`Статус API: ${response.status}`);
 
                 } catch (error) {
                     console.error(`Ошибка с прокси ${proxyUrl}:`, error);
                     lastError = error;
                     
-                    // Если ошибка "Неверный пароль", не нужно пробовать другие прокси
-                    if (error.message.includes('Неверный')) {
-                        errorBox.innerText = error.message;
+                    // Если это ошибка авторизации, сразу показываем её и останавливаемся
+                    if (error.message.includes('AUTH_ERROR') || error.message.includes('Неверный')) {
+                        errorBox.innerText = error.message.replace("AUTH_ERROR: ", "");
                         errorBox.classList.remove('hidden');
                         tg.HapticFeedback.notificationOccurred('error');
                         loginBtn.disabled = false;
@@ -239,7 +252,7 @@
             }
 
             // Если все прокси не сработали
-            errorBox.innerText = 'Не удалось подключиться к серверу. Попробуйте позже или используйте Демо-режим.';
+            errorBox.innerText = `Не удалось подключиться. Последняя ошибка: ${lastError ? lastError.message : 'Unknown'}`;
             errorBox.classList.remove('hidden');
             tg.HapticFeedback.notificationOccurred('error');
             
@@ -274,7 +287,7 @@
         async function loadRealData() {
             try {
                 const token = localStorage.getItem('mk_token');
-                // Используем сохраненный работающий прокси или первый из списка
+                // Используем сохраненный работающий прокси
                 const savedProxy = localStorage.getItem('working_proxy') || PROXIES[0];
                 
                 const targetUrl = `${API_URL}/baseInfo`;
@@ -290,7 +303,7 @@
                 
                 if(!response.ok) {
                     if(response.status === 401) logout();
-                    throw new Error('Failed to load profile');
+                    throw new Error('Не удалось загрузить профиль');
                 }
 
                 const user = await response.json();
