@@ -41,10 +41,10 @@
     <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300 overflow-y-auto">
         <div class="w-full max-w-sm flex flex-col items-center pt-10">
             <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
-                <i class="fa-solid fa-rocket text-blue-600 text-3xl"></i>
+                <i class="fa-brands fa-google text-blue-600 text-3xl"></i>
             </div>
-            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход (Ваш Прокси)</h2>
-            <p class="text-gray-400 mb-8 text-center text-sm px-4">Соединение через личный шлюз Cloudflare.</p>
+            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход (Google Proxy)</h2>
+            <p class="text-gray-400 mb-8 text-center text-sm px-4">Стабильное соединение через Google Cloud.</p>
             
             <form id="login-form" class="w-full space-y-4">
                 <div>
@@ -140,11 +140,8 @@
         // НАСТРОЙКИ
         // ==========================================
         
-        const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
-        const API_BASE = 'https://api.moyklass.com/v1/company'; 
-
-        // ВАШ ЛИЧНЫЙ ПРОКСИ (Обновлено!)
-        const OWN_PROXY = 'https://my-sport-crm.potapov-path.workers.dev'; 
+        // Ссылка на ваш Google Script (Обновлено)
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvfj64g5EmcSwsLA6UVXg7pkSMLC3-7MQB20Yk0_7btzMhmyNyaQ8GnZ7H0S_gtx8N/exec'; 
 
         // ==========================================
 
@@ -176,7 +173,12 @@
             debugContainer.classList.remove('hidden');
             debugLog.innerHTML = ''; 
             
-            log('Старт поиска...');
+            if (!GOOGLE_SCRIPT_URL) {
+                log('ОШИБКА: Вставьте ссылку GOOGLE_SCRIPT_URL в код!', 'error');
+                return;
+            }
+
+            log('Старт поиска через Google...');
             
             const rawPhone = mask.unmaskedValue; 
             if (rawPhone.length < 10) {
@@ -189,6 +191,8 @@
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Соединение...';
 
             try {
+                // Пытаемся найти пользователя по номеру телефона
+                // Перебираем форматы, так как CRM может хранить по-разному
                 let formats = [rawPhone];
                 if (rawPhone.startsWith('7')) {
                     formats.push('8' + rawPhone.substring(1));
@@ -198,15 +202,15 @@
                 let foundUser = null;
 
                 for (let phone of formats) {
-                    log(`Запрос по номеру: ${phone}`);
+                    log(`Ищем: ${phone}`);
                     try {
-                        const users = await apiCall(`/users?phone=${phone}`);
+                        const users = await apiCall(`/users`, { phone: phone });
                         if (users && users.length > 0) {
                             foundUser = users[0];
                             log(`Нашел ID: ${foundUser.id}`, 'success');
                             break;
                         } else {
-                            log(`Пользователь не найден`, 'error');
+                            log(`Не найден по ${phone}`);
                         }
                     } catch (err) {
                         log(`Ошибка: ${err.message}`, 'error');
@@ -219,6 +223,7 @@
                     startApp(false);
                 } else {
                     tg.showPopup({message: 'Номер не найден в базе.'});
+                    log('Пользователь не найден', 'error');
                 }
 
             } catch (error) {
@@ -230,23 +235,21 @@
             }
         });
 
-        // --- API CALL ЧЕРЕЗ ВАШ ПРОКСИ ---
-        async function apiCall(endpoint) {
-            // Формируем URL для вашего воркера
-            const cleanProxy = OWN_PROXY.replace(/\/$/, "");
-            const targetUrl = `${API_BASE}${endpoint}`;
-            const proxyUrl = `${cleanProxy}?url=${encodeURIComponent(targetUrl)}`;
+        // --- API CALL ЧЕРЕЗ GOOGLE APPS SCRIPT ---
+        async function apiCall(endpoint, params = {}) {
+            // Формируем URL для Google Script
+            const url = new URL(GOOGLE_SCRIPT_URL);
+            url.searchParams.append("path", endpoint);
             
-            log(`Запрос к Cloudflare Worker...`);
+            for (const key in params) {
+                url.searchParams.append(key, params[key]);
+            }
+            
+            log(`Запрос к Google Script...`);
             
             try {
-                const response = await fetch(proxyUrl, {
-                    method: 'GET',
-                    headers: {
-                        'x-access-token': COMPANY_API_KEY, 
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
+                const response = await fetch(url.toString(), {
+                    method: 'GET' 
                 });
 
                 if (!response.ok) {
@@ -255,15 +258,16 @@
 
                 const data = await response.json();
                 
-                // Проверка на ошибку API внутри
+                // Проверка на ошибку, которую мы сами возвращаем из скрипта
+                if (data.error) {
+                    log(`GAS Error: ${data.error}`, 'error');
+                    throw new Error(data.error);
+                }
+                
+                // Проверка на ошибку API CRM внутри ответа
                 if (data.code || (data.message && !Array.isArray(data) && !data.id)) {
-                    log(`Ответ API: ${JSON.stringify(data)}`, 'error');
-                    
-                    // Если API жалуется на ключ, значит прокси его не передал
-                    if(JSON.stringify(data).includes('x-access-token')) {
-                        throw new Error('Прокси не передал ключ (Header strip).');
-                    }
-                    throw new Error('Ошибка API');
+                    log(`CRM Error: ${JSON.stringify(data)}`, 'error');
+                    throw new Error('API Error');
                 }
 
                 return data; // УСПЕХ
@@ -329,7 +333,12 @@
                 nextWeek.setDate(new Date().getDate() + 14);
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${today}&dateTo=${dateTo}`);
+                // Передаем параметры как объект, чтобы apiCall их добавил в URL
+                const lessons = await apiCall(`/lessons`, {
+                    "userIds[]": userId,
+                    "dateFrom": today,
+                    "dateTo": dateTo
+                });
                 
                 if (lessons && lessons.length > 0) {
                     const now = new Date();
