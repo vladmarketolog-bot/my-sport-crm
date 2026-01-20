@@ -8,7 +8,6 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <!-- Input Mask for Phone -->
     <script src="https://unpkg.com/imask"></script>
     
@@ -27,35 +26,48 @@
         .btn-press:active { transform: scale(0.95); opacity: 0.8; }
         .fade-in { animation: fadeIn 0.5s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Лог для отладки */
+        #debug-log {
+            font-family: monospace;
+            font-size: 10px;
+            line-height: 1.2;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body class="font-sans antialiased min-h-screen pb-24 bg-gray-50 text-gray-800">
 
     <!-- === LOGIN SCREEN (PHONE ONLY) === -->
-    <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300">
-        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm">
-            <i class="fa-solid fa-mobile-screen-button text-blue-600 text-3xl"></i>
-        </div>
-        <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход по номеру</h2>
-        <p class="text-gray-400 mb-8 text-center text-sm px-4">Введите номер телефона, который вы указывали при регистрации в клубе.</p>
-        
-        <form id="login-form" class="w-full max-w-sm space-y-4">
-            <div>
-                <input type="tel" id="login-phone" placeholder="+7 (900) 000-00-00" 
-                    class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-lg text-center tracking-wider" required>
+    <div id="login-overlay" class="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 transition-all duration-300 overflow-y-auto">
+        <div class="w-full max-w-sm flex flex-col items-center pt-10">
+            <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6 shadow-sm shrink-0">
+                <i class="fa-solid fa-mobile-screen-button text-blue-600 text-3xl"></i>
             </div>
+            <h2 class="text-2xl font-extrabold mb-2 text-gray-900">Вход по номеру</h2>
+            <p class="text-gray-400 mb-8 text-center text-sm px-4">Введите номер телефона, который вы указывали при регистрации в клубе.</p>
             
-            <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
-                <span>Найти меня</span>
-            </button>
-        </form>
+            <form id="login-form" class="w-full space-y-4">
+                <div>
+                    <input type="tel" id="login-phone" placeholder="+7 (900) 000-00-00" 
+                        class="w-full p-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-lg text-center tracking-wider" required>
+                </div>
+                
+                <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 btn-press transition-all flex justify-center items-center gap-2">
+                    <span>Найти меня</span>
+                </button>
+            </form>
 
-        <button onclick="enableDemoMode()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
-            Посмотреть Демо-версию
-        </button>
-        
-        <!-- Error Debug Area -->
-        <div id="error-box" class="hidden mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg w-full max-w-sm break-words text-center border border-red-100 font-mono"></div>
+            <button onclick="enableDemoMode()" class="mt-8 text-gray-400 text-sm hover:text-gray-600 underline">
+                Войти в Демо-версию (без API)
+            </button>
+
+            <!-- Debug Log Area -->
+            <div id="debug-container" class="w-full mt-6 hidden">
+                <p class="text-xs text-gray-400 mb-1">Журнал соединения:</p>
+                <div id="debug-log" class="w-full bg-gray-900 text-green-400 p-3 rounded-lg h-32 overflow-y-auto shadow-inner border border-gray-700"></div>
+            </div>
+        </div>
     </div>
 
     <!-- === MAIN APP === -->
@@ -131,17 +143,18 @@
         
         const COMPANY_API_KEY = '01ysvZCduYTq4mTY8paZUqH2EF0qy8Jd1oFHVONhaPZ9ggrFrOS0'; 
         
-        // ОБНОВЛЕННЫЙ СПИСОК ПРОКСИ
-        // Эти прокси лучше сохраняют заголовки (API Key)
+        // Список прокси.
+        // corsproxy.io требует формат https://corsproxy.io/?url...
+        // codetabs прост и надежен для JSON
         const PROXIES = [
             'https://corsproxy.io/?',
-            'https://thingproxy.freeboard.io/fetch/',
-            'https://api.codetabs.com/v1/proxy?quest='
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://thingproxy.freeboard.io/fetch/'
         ];
         
         const API_BASE = 'https://api.moyklass.com/v1/company'; 
 
-        // Инициализация маски ввода телефона (+7 ...)
+        // Инициализация маски ввода телефона
         const phoneInput = document.getElementById('login-phone');
         const maskOptions = { 
             mask: '+{7} (000) 000-00-00',
@@ -153,7 +166,8 @@
         
         const loginOverlay = document.getElementById('login-overlay');
         const app = document.getElementById('app');
-        const errorBox = document.getElementById('error-box');
+        const debugContainer = document.getElementById('debug-container');
+        const debugLog = document.getElementById('debug-log');
         const loginBtn = document.getElementById('login-btn');
 
         // Проверка сохраненного входа
@@ -166,55 +180,84 @@
             enableDemoMode();
         }
 
+        // Логгер
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-red-400' : (type === 'success' ? 'text-green-400' : 'text-gray-300');
+            debugLog.innerHTML += `<div class="${color}">[${time}] ${msg}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(msg);
+        }
+
         // --- ЛОГИКА ВХОДА ПО ТЕЛЕФОНУ ---
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault(); 
-            errorBox.classList.add('hidden');
             
-            const rawPhone = mask.unmaskedValue; 
+            // Показываем лог
+            debugContainer.classList.remove('hidden');
+            debugLog.innerHTML = ''; 
+            log('Начало поиска пользователя...');
+            
+            const rawPhone = mask.unmaskedValue; // Получаем только цифры (напр. 79991234567)
             
             if (rawPhone.length < 10) {
+                log('Ошибка: Номер слишком короткий', 'error');
                 tg.showPopup({message: 'Пожалуйста, введите полный номер телефона'});
                 return;
             }
 
             const originalText = loginBtn.innerText;
             loginBtn.disabled = true;
-            loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Поиск...';
+            loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Подключение...';
 
             try {
-                console.log("Searching user by phone:", rawPhone);
-                // Поиск пользователя
-                const users = await apiCall(`/users?phone=${rawPhone}`); 
+                // Поиск по нескольким форматам
+                // API МойКласс может хранить как 7..., так и 8...
+                let formatsToCheck = [rawPhone];
+                if (rawPhone.startsWith('7')) {
+                    formatsToCheck.push('8' + rawPhone.substring(1));
+                    formatsToCheck.push(rawPhone.substring(1)); // Без кода страны (рискованно, но бывает)
+                }
+                
+                let foundUser = null;
 
-                console.log('Найденные пользователи:', users);
+                for (let phone of formatsToCheck) {
+                    log(`Ищем по номеру: ${phone}`);
+                    try {
+                        const users = await apiCall(`/users?phone=${phone}`);
+                        if (users && users.length > 0) {
+                            foundUser = users[0];
+                            log(`Нашел пользователя: ${foundUser.name}`, 'success');
+                            break;
+                        } else {
+                            log(`Пустой результат для ${phone}`);
+                        }
+                    } catch (err) {
+                        log(`Ошибка поиска ${phone}: ${err.message}`, 'error');
+                    }
+                }
 
-                if (users && users.length > 0) {
-                    const user = users[0];
-                    localStorage.setItem('mk_user_id', user.id);
+                if (foundUser) {
+                    localStorage.setItem('mk_user_id', foundUser.id);
                     localStorage.removeItem('is_demo');
                     tg.HapticFeedback.notificationOccurred('success');
                     startApp(false);
                 } else {
-                    throw new Error('Ученик с таким номером не найден.');
+                    throw new Error('Ученик с таким номером не найден в базе.');
                 }
 
             } catch (error) {
-                console.error(error);
+                log(`ФАТАЛЬНАЯ ОШИБКА: ${error.message}`, 'error');
                 tg.HapticFeedback.notificationOccurred('error');
-                
-                // Вывод ошибки пользователю для диагностики
-                errorBox.innerText = `Ошибка: ${error.message}`;
-                errorBox.classList.remove('hidden');
             } finally {
                 loginBtn.disabled = false;
                 loginBtn.innerText = originalText;
             }
         });
 
-        // --- ФУНКЦИЯ ЗАПРОСА К API (АВТО-ПРОКСИ) ---
+        // --- ФУНКЦИЯ ЗАПРОСА К API (АГРЕССИВНЫЙ ПРОКСИ) ---
         async function apiCall(endpoint) {
-            let errorDetails = [];
+            let lastError = null;
 
             for (const proxyUrl of PROXIES) {
                 try {
@@ -222,8 +265,9 @@
                     // Кодируем URL
                     const fullUrl = `${proxyUrl}${encodeURIComponent(targetUrl)}`;
                     
-                    console.log(`Trying proxy: ${proxyUrl}`);
+                    log(`Прокси: ${new URL(proxyUrl).hostname}...`);
                     
+                    // Попытка 1: С заголовками
                     const response = await fetch(fullUrl, {
                         method: 'GET',
                         headers: {
@@ -235,38 +279,38 @@
                     // Читаем текст ответа
                     const text = await response.text();
                     
+                    // Пытаемся парсить JSON
                     let data;
                     try {
                         data = JSON.parse(text);
                     } catch(e) {
-                        // Если прокси вернул HTML или мусор
-                        console.warn(`Proxy ${proxyUrl} invalid JSON`);
-                        errorDetails.push(`${proxyUrl}: Invalid JSON`);
+                        // Если это codetabs, иногда он возвращает contents
+                        if (text.includes('"contents":')) {
+                             // Обработка специфики some proxies
+                        }
+                        log(`Прокси ${proxyUrl} вернул не JSON: ${text.substring(0,20)}...`, 'error');
                         continue; 
+                    }
+
+                    // Проверка статуса MoyKlass (иногда прокси возвращает 200, но внутри ошибка API)
+                    if (data && (data.code || (data.message && !Array.isArray(data) && !data.id))) {
+                         // Похоже на ошибку
+                         log(`API Error: ${JSON.stringify(data)}`, 'error');
                     }
 
                     if (response.ok) {
                         return data;
                     }
                     
-                    // Если API вернуло 401, значит ключ неверный или не прошел через прокси
-                    if (response.status === 401) {
-                         console.warn(`Proxy ${proxyUrl} 401 Unauthorized`);
-                         errorDetails.push(`${proxyUrl}: 401 (Auth Failed)`);
-                         continue;
-                    }
-                    
-                    errorDetails.push(`${proxyUrl}: ${response.status}`);
+                    log(`HTTP ${response.status}`, 'error');
 
                 } catch (e) {
-                    console.warn(`Proxy ${proxyUrl} network error`, e);
-                    errorDetails.push(`${proxyUrl}: Net Error`);
+                    log(`Сбой сети: ${e.message}`, 'error');
+                    lastError = e;
                 }
             }
             
-            // Если мы здесь, значит все прокси провалились
-            console.error("All proxies failed:", errorDetails);
-            throw new Error(`Не удалось соединиться с CRM. Детали: ${errorDetails.join(', ')}`);
+            throw new Error(`Все шлюзы недоступны. ${lastError ? lastError.message : ''}`);
         }
 
         // --- ЗАПУСК ПРИЛОЖЕНИЯ ---
@@ -295,6 +339,7 @@
                 const userId = localStorage.getItem('mk_user_id');
                 if (!userId) { logout(); return; }
 
+                log('Загрузка профиля...');
                 const user = await apiCall(`/users/${userId}`);
                 
                 updateUI({
@@ -307,10 +352,12 @@
                     nextLesson: "Загрузка..."
                 });
                 
+                log('Загрузка уроков...');
                 loadNextLesson(userId);
 
             } catch (e) {
                 console.error(e);
+                log(`Ошибка данных: ${e.message}`, 'error');
                 document.getElementById('header-name').innerText = "Ошибка";
             }
         }
@@ -324,7 +371,9 @@
                 const dateFrom = today.toISOString().split('T')[0];
                 const dateTo = nextWeek.toISOString().split('T')[0];
 
-                // Company API использует userIds[] (массив)
+                // Некоторые версии API требуют userIds[]=123
+                // Другие userId=123
+                // Пробуем массив
                 const lessons = await apiCall(`/lessons?userIds[]=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
                 
                 if (lessons && lessons.length > 0) {
